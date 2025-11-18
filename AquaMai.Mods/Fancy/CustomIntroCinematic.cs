@@ -1,20 +1,22 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using AquaMai.Config.Attributes;
+﻿using AquaMai.Config.Attributes;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
 using MAI2.Util;
+using Mai2_acf.Category;
 using Manager;
 using Manager.MaiStudio;
 using Manager.UserDatas;
 using MelonLoader;
+using Monitor;
 using Process;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Video;
-using Monitor;
+using static AquaMai.Mods.Fancy.TrackCamouflage;
 
 namespace AquaMai.Mods.Fancy;
 
@@ -44,7 +46,7 @@ public class CustomIntroCinematic
     private static bool _isInitialized = false;
 
     private static Dictionary<int, (string leftPath, string rightPath, string acbPath, string awbPath)> _targetIDMovieDict = new Dictionary<int, (string leftPath, string rightPath, string acbPath, string awbPath)>();
-    
+
 
 
     [HarmonyPrepare]
@@ -67,7 +69,7 @@ public class CustomIntroCinematic
         var audioFiles = Directory.GetFiles(resolvedDir, "*.acb", SearchOption.TopDirectoryOnly)
             .Concat(Directory.GetFiles(resolvedDir, "*.awb", SearchOption.TopDirectoryOnly))
             .ToArray();
-        
+
         // 用于存储解析结果的临时字典
         var tempVideoDict = new Dictionary<int, List<(string path, string type)>>();
         var tempAudioDict = new Dictionary<int, List<(string path, string type)>>();
@@ -77,7 +79,7 @@ public class CustomIntroCinematic
         {
             // 统一小写
             string fileName = Path.GetFileNameWithoutExtension(filePath).ToLower();
-            
+
             // 检查文件名是否以"enter_"开头
             if (!fileName.StartsWith("enter_"))
                 continue;
@@ -123,7 +125,7 @@ public class CustomIntroCinematic
         foreach (var filePath in audioFiles)
         {
             string fileName = Path.GetFileNameWithoutExtension(filePath).ToLower();
-            
+
             // 检查文件名是否以"enter_"开头
             if (!fileName.StartsWith("enter_"))
                 continue;
@@ -305,6 +307,13 @@ public class CustomIntroCinematic
 
         public override void OnStart()
         {
+            int musicID = GameManager.SelectMusicID[1];
+
+            if (!IntroCinemaCheck(musicID))
+            {
+                return;
+            }
+
             try
             {
                 // 隐藏普通背景
@@ -323,13 +332,12 @@ public class CustomIntroCinematic
                 {
                     if (Singleton<UserDataManager>.Instance.GetUserData(l).IsEntry)
                     {
-                        int num = GameManager.SelectMusicID[l];
                         int num2 = GameManager.SelectDifficultyID[l];
-                        MusicData music = Singleton<DataManager>.Instance.GetMusic(num);
+                        MusicData music = Singleton<DataManager>.Instance.GetMusic(musicID);
                         Notes notes = null;
                         MusicDifficultyID musicDifficultyID = (MusicDifficultyID)num2;
-                        int musicLevelID = (((uint)musicDifficultyID > 4u) ? Singleton<DataManager>.Instance.GetMusic(num).notesData[0] : Singleton<DataManager>.Instance.GetMusic(num).notesData[num2]).musicLevelID;
-                        MessageMusicData messageMusicData = new MessageMusicData(container.assetManager.GetJacketTexture2D(music.jacketFile), music.name.str, music.utageKanjiName, music.utagePlayStyle, music.GetID(), num2, musicLevelID, GameManager.GetScoreKind(num), Singleton<DataManager>.Instance.IsLong(music.longMusic));
+                        int musicLevelID = (((uint)musicDifficultyID > 4u) ? Singleton<DataManager>.Instance.GetMusic(musicID).notesData[0] : Singleton<DataManager>.Instance.GetMusic(musicID).notesData[num2]).musicLevelID;
+                        MessageMusicData messageMusicData = new MessageMusicData(container.assetManager.GetJacketTexture2D(music.jacketFile), music.name.str, music.utageKanjiName, music.utagePlayStyle, music.GetID(), num2, musicLevelID, GameManager.GetScoreKind(musicID), Singleton<DataManager>.Instance.IsLong(music.longMusic));
                         container.processManager.SendMessage(new Message(ProcessType.CommonProcess, 20002, l, messageMusicData));
                     }
                     container.processManager.SendMessage(new Message(ProcessType.CommonProcess, 50016, l));
@@ -676,7 +684,7 @@ public class CustomIntroCinematic
                     // 创建 Material 并保存引用
                     _movieMaterials[0] = new Material(Shader.Find("Sprites/Default"));
                     _movieMaterials[1] = new Material(Shader.Find("Sprites/Default"));
-                    
+
                     leftMovieSprite.material = _movieMaterials[0];
                     rightMovieSprite.material = _movieMaterials[1];
 
@@ -817,7 +825,7 @@ public class CustomIntroCinematic
             try
             {
                 MelonLogger.Msg("[CustomIntroCinematic] Falling back to GameProcess");
-                
+
                 // 清理所有资源
                 CleanupResources();
 
@@ -856,33 +864,33 @@ public class CustomIntroCinematic
                     // 解绑事件回调
                     _videoPlayers[i].prepareCompleted -= null;
                     _videoPlayers[i].errorReceived -= null;
-                    
+
                     // 清理 VideoPlayer
                     _videoPlayers[i].Stop();
                     UnityEngine.Object.Destroy(_videoPlayers[i]);
                     _videoPlayers[i] = null;
                 }
-                
+
                 // 清理 Material
                 if (_movieMaterials != null && _movieMaterials[i] != null)
                 {
                     UnityEngine.Object.Destroy(_movieMaterials[i]);
                     _movieMaterials[i] = null;
                 }
-                
+
                 if (_movieMaskObjs[i] != null)
                 {
                     UnityEngine.Object.Destroy(_movieMaskObjs[i]);
                     _movieMaskObjs[i] = null;
                 }
-                
+
                 // 销毁Monitor GameObject
                 if (_monitorObjects[i] != null)
                 {
                     UnityEngine.Object.Destroy(_monitorObjects[i]);
                     _monitorObjects[i] = null;
                 }
-                
+
                 // 清理 sprite 引用
                 try
                 {
@@ -896,7 +904,23 @@ public class CustomIntroCinematic
             }
         }
     }
-    
+    private static bool IntroCinemaCheck(int musicID)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
+            if (playerData != null)
+            {
+                for (int j = 0; j < 6; ++j)
+                {
+                    playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
+                    if (musicScore == null)
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(MusicSelectProcess), "GameStart")]
@@ -919,32 +943,32 @@ public class CustomIntroCinematic
 
             // 试玩模式不生效
             if (GameManager.IsTrialPlay) return true;
-            
+
             // 联机对战不生效
             Manager.Party.Party.IManager PartyManager = Manager.Party.Party.Party.Get();
             if (SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup.gameSetting.MachineGroupID != DB.MachineGroupID.OFF && PartyManager != null && PartyManager.IsJoinAndActive())
                 return true;
-            
+
             // 检查当前选择的歌曲是否为目标歌曲
             var musicId = GameManager.SelectMusicID[0];
             if (_targetIDMovieDict.TryGetValue(musicId, out var videoPath))
             {
                 MelonLogger.Msg($"[CustomIntroCinematic] Play intro cinematic for music {musicId}");
-                
+
                 // 使用反射获取 MusicSelectProcess 的 container 字段
-                var containerField = typeof(ProcessBase).GetField("container", 
+                var containerField = typeof(ProcessBase).GetField("container",
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                 var container = (ProcessDataContainer)containerField.GetValue(__instance);
-                
+
                 // 使用自定义的 SimpleMovieTrackStartProcess 替换 TrackStartProcess
                 container.processManager.AddProcess(
-                    new FadeProcess(container, __instance, 
-                        new SimpleMovieTrackStartProcess(container, videoPath), 
+                    new FadeProcess(container, __instance,
+                        new SimpleMovieTrackStartProcess(container, videoPath),
                         releaseCustomMaterial: false), 50);
-                
+
                 SoundManager.PreviewEnd();
                 SoundManager.StopBGM(2);
-                
+
                 return false; // 阻止原方法执行
             }
         }
@@ -952,7 +976,7 @@ public class CustomIntroCinematic
         {
             MelonLogger.Msg($"[CustomIntroCinematic] GameStartPrefix error: {e}");
         }
-        
+
         return true; // 正常执行原方法
     }
 

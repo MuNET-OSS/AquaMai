@@ -379,13 +379,13 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
                 for (int j = 0; j < 6; ++j)
                 {
                     playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
-                    if (musicScore != null)
-                        return false;
+                    if (musicScore == null)
+                        return true;
                 }
             }
         }
 
-        return true;
+        return false;
     }
 
     public class CamouflageInfo
