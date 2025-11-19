@@ -1,20 +1,22 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using AquaMai.Config.Attributes;
+﻿using AquaMai.Config.Attributes;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
 using MAI2.Util;
+using Mai2_acf.Category;
 using Manager;
 using Manager.MaiStudio;
 using Manager.UserDatas;
 using MelonLoader;
-using Process;
-using UnityEngine;
-using UnityEngine.Video;
 using Monitor;
+using Process;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SocialPlatforms;
+using UnityEngine.Video;
 
 namespace AquaMai.Mods.Fancy;
 
@@ -925,8 +927,25 @@ public class CustomIntroCinematic
             if (SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup.gameSetting.MachineGroupID != DB.MachineGroupID.OFF && PartyManager != null && PartyManager.IsJoinAndActive())
                 return true;
             
-            // 检查当前选择的歌曲是否为目标歌曲
+            //获取曲目ID
             var musicId = GameManager.SelectMusicID[0];
+
+            //任一玩家拥有曲目成绩时不生效
+            for (int i = 0; i < 4; ++i)
+            {
+                var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
+                if (playerData != null)
+                {
+                    for (int j = 0; j < 6; ++j)
+                    {
+                        playerData.ScoreDic[j].TryGetValue(musicId, out UserScore musicScore);
+                        if (musicScore != null)
+                            return true;
+                    }
+                }
+            }
+
+            // 检查当前选择的歌曲是否为目标歌曲
             if (_targetIDMovieDict.TryGetValue(musicId, out var videoPath))
             {
                 MelonLogger.Msg($"[CustomIntroCinematic] Play intro cinematic for music {musicId}");

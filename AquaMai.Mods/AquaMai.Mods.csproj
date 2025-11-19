@@ -37,12 +37,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="AMDaemon.NET">
+      <HintPath>..\..\MaiMai\SDEZ\Package\Sinmai_Data\Managed\AMDaemon.NET.dll</HintPath>
+    </Reference>
     <Reference Include="mscorlib">
       <HintPath>../Libs/mscorlib.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="0Harmony" />
-    <Reference Include="AMDaemon.NET" />
     <Reference Include="Assembly-CSharp" />
     <Reference Include="Assembly-CSharp-firstpass" />
     <Reference Include="MelonLoader" />
