@@ -1,17 +1,19 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Reflection;
+using AquaMai.Config.Attributes;
+using AquaMai.Core;
+using AquaMai.Core.Helpers;
 using HarmonyLib;
-using UnityEngine;
-using System.Text.RegularExpressions;
 using MAI2.Util;
 using Manager;
 using MelonLoader;
 using Monitor;
-using AquaMai.Config.Attributes;
-using AquaMai.Core;
-using AquaMai.Core.Helpers;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using UnityEngine;
+using Util;
 
 namespace AquaMai.Mods.GameSystem.Assets;
 
@@ -36,6 +38,7 @@ public class LoadLocalImages
     private static readonly Dictionary<string, string> partnerPaths = [];
     //private static readonly Dictionary<string, string> navicharaPaths = [];
     private static readonly Dictionary<string, string> tabTitlePaths = [];
+    private static readonly Dictionary<string, Dictionary<string, string>> mapBgPaths = [];
     private static readonly Dictionary<string, string> localAssetsContents = [];
 
     [HarmonyPrefix]
@@ -50,6 +53,7 @@ public class LoadLocalImages
                     if (!imageExts.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
                     var idStr = Path.GetFileName(file).Substring("ui_jacket_".Length, 6);
                     jacketPaths[idStr] = file;
+                    MelonLogger.Msg($"[LoadLocalImages] Loaded {file}");
                 }
 
             if (Directory.Exists(Path.Combine(aDir, @"AssetBundleImages\frame")))
@@ -121,9 +125,21 @@ public class LoadLocalImages
                     if (!imageExts.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
                     tabTitlePaths[Path.GetFileNameWithoutExtension(file).ToLowerInvariant()] = file;
                 }
+
+            if (Directory.Exists(Path.Combine(aDir, @"AssetBundleImages\map\sprite\bg")))
+                foreach (var directory in Directory.GetDirectories(Path.Combine(aDir, @"AssetBundleImages\map\sprite\bg")))
+                {
+                    string idStr = Path.GetFileName(directory);
+                    foreach (var file in Directory.GetFiles(directory))
+                    {
+                        if (!imageExts.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
+                        if (!mapBgPaths.ContainsKey(idStr)) mapBgPaths[idStr] = new Dictionary<string, string>();
+                        mapBgPaths[idStr][Path.GetFileNameWithoutExtension(file).ToLowerInvariant()] = file;
+                    }
+                }
         }
 
-        MelonLogger.Msg($"[LoadLocalImages] Loaded {jacketPaths.Count} Jacket, {platePaths.Count} NamePlate, {framePaths.Count} Frame, {framemaskPaths.Count} FrameMask, {framepatternPaths.Count} FramePattern, {iconPaths.Count} Icon, {charaPaths.Count} Chara, {partnerPaths.Count} PartnerLogo, {tabTitlePaths.Count} Tab Titles from AssetBundleImages.");
+        MelonLogger.Msg($"[LoadLocalImages] Loaded {jacketPaths.Count} Jacket, {platePaths.Count} NamePlate, {framePaths.Count} Frame, {framemaskPaths.Count} FrameMask, {framepatternPaths.Count} FramePattern, {iconPaths.Count} Icon, {charaPaths.Count} Chara, {partnerPaths.Count} PartnerLogo, {tabTitlePaths.Count} Tab Titles, {mapBgPaths.Count} Maps from AssetBundleImages.");
 
         var resolvedDir = FileSystem.ResolvePath(imageAssetsDir);
         if (Directory.Exists(resolvedDir))
@@ -285,6 +301,26 @@ public class LoadLocalImages
         return texture;
     }
 
+    private static string GetMapBgPath(string id, string filename)
+    {
+        return mapBgPaths.GetExValueOrDefault(id, filename.ToLowerInvariant()); 
+    }
+
+    public static Texture2D GetMapBgTexture2D(string id, string filename)
+    {
+        var path = GetMapBgPath(id, filename);
+        if (path == null) return null;
+        var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        texture.LoadImage(File.ReadAllBytes(path));
+        return texture;
+    }
+
+    public static Sprite GetMapBgSprite(string id, string filename)
+    {
+        var texture = GetMapBgTexture2D(id, filename);
+        if (texture == null) return null;
+        return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+    }
     /*
     [HarmonyPatch]
     public static class TabTitleLoader
@@ -575,4 +611,27 @@ public class LoadLocalImages
         }
     }
     */
+
+    [HarmonyPatch]
+    public static class MapLoader
+    {
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            var AM = typeof(AssetManager);
+            return [AM.GetMethod("GetMapBgSprite", [typeof(int), typeof(string)])];
+        }
+
+        public static bool Prefix(int mapId, string filename, ref Sprite __result, AssetManager __instance)
+        {
+            if (mapId < 1)
+            {
+                return true;
+            }
+            var id = mapId.ToString("000000");
+            Sprite sprite = GetMapBgSprite(id, filename);
+            if(sprite == null) sprite = __instance.LoadAsset<Sprite>($"Map/Sprite/BG/" + id + "/" + filename + ".png");
+            __result = sprite ?? __instance.LoadAsset<Sprite>($"Map/Sprite/BG/" + (Singleton<MapMaster>.Instance.IsCollaboMap(mapId) ? 990001 : 999999) + "/" + filename + ".png");
+            return false;
+        }
+    }
 }
