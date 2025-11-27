@@ -1,4 +1,8 @@
-﻿using AquaMai.Config.Attributes;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using AquaMai.Config.Attributes;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
@@ -8,10 +12,6 @@ using Manager.MaiStudio;
 using Manager.UserDatas;
 using MelonLoader;
 using Process;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.Video;
 
