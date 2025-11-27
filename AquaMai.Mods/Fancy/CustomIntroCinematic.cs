@@ -3,19 +3,16 @@ using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
 using MAI2.Util;
-using Mai2_acf.Category;
 using Manager;
 using Manager.MaiStudio;
 using Manager.UserDatas;
 using MelonLoader;
-using Monitor;
 using Process;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.SocialPlatforms;
 using UnityEngine.Video;
 
 namespace AquaMai.Mods.Fancy;
@@ -42,6 +39,12 @@ public class CustomIntroCinematic
             "使用 MaiChartManager 中的工具可以快速转换视频\n" +
             "效果演示: https://www.bilibili.com/video/BV1jTxVzjETG")]
     private static readonly string IntroMovieDir = "LocalAssets/IntroMovies";
+
+    [ConfigEntry(name: "仅在未玩过乐曲时播放",
+        zh: "开启后，仅当 1P 2P 双方均没有玩过这首乐曲时播放开场视频",
+        en: "Only play the intro cinematic when both players have not played the song")]
+    private static readonly bool onlyPlayWhenNotPlayed = false;
+
 
     private static bool _isInitialized = false;
 
@@ -930,17 +933,20 @@ public class CustomIntroCinematic
             //获取曲目ID
             var musicId = GameManager.SelectMusicID[0];
 
-            //任一玩家拥有曲目成绩时不生效
-            for (int i = 0; i < 4; ++i)
+            if (onlyPlayWhenNotPlayed)
             {
-                var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
-                if (playerData != null)
+                //任一玩家拥有曲目成绩时不生效
+                for (int i = 0; i < 4; ++i)
                 {
-                    for (int j = 0; j < 6; ++j)
+                    var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
+                    if (playerData != null)
                     {
-                        playerData.ScoreDic[j].TryGetValue(musicId, out UserScore musicScore);
-                        if (musicScore != null)
-                            return true;
+                        for (int j = 0; j < 6; ++j)
+                        {
+                            playerData.ScoreDic[j].TryGetValue(musicId, out UserScore musicScore);
+                            if (musicScore != null)
+                                return true;
+                        }
                     }
                 }
             }
