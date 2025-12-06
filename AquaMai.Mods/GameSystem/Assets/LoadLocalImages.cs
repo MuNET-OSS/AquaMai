@@ -53,7 +53,6 @@ public class LoadLocalImages
                     if (!imageExts.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
                     var idStr = Path.GetFileName(file).Substring("ui_jacket_".Length, 6);
                     jacketPaths[idStr] = file;
-                    MelonLogger.Msg($"[LoadLocalImages] Loaded {file}");
                 }
 
             if (Directory.Exists(Path.Combine(aDir, @"AssetBundleImages\frame")))
