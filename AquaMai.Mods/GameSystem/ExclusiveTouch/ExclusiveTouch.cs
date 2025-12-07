@@ -35,6 +35,8 @@ public class ExclusiveTouch
     public static readonly int maxX1p;
     [ConfigEntry]
     public static readonly int maxY1p;
+    [ConfigEntry]
+    public static readonly bool flip1p;
 
     [ConfigEntry("触摸体积半径", zh: "基准是 1440x1440")]
     public static readonly int radius1p;
@@ -42,7 +44,7 @@ public class ExclusiveTouch
     private static UsbDevice[] devices = new UsbDevice[2];
     private static TouchSensorMapper[] touchSensorMappers = new TouchSensorMapper[2];
     // 持久化的触摸状态：每个手指ID对应的触摸区域掩码
-    private static Dictionary<int, ulong>[] activeTouches = [new Dictionary<int, ulong>(), new Dictionary<int, ulong>()];
+    private static Dictionary<int, ulong>[] activeTouches = [[], []];
 
     public static void OnBeforePatch()
     {
@@ -64,7 +66,7 @@ public class ExclusiveTouch
                     wholeDevice.SetConfiguration(configuration1p);
                     wholeDevice.ClaimInterface(interfaceNumber1p);
                 }
-                touchSensorMappers[0] = new TouchSensorMapper(minX1p, minY1p, maxX1p, maxY1p, radius1p);
+                touchSensorMappers[0] = new TouchSensorMapper(minX1p, minY1p, maxX1p, maxY1p, radius1p, flip1p);
                 var reader = device.OpenEndpointReader(ReadEndpointID.Ep01);
                 reader.DataReceived += (sender, e) => OnTouchData(0, sender, e);
                 reader.DataReceivedEnabled = true;
@@ -102,22 +104,7 @@ public class ExclusiveTouch
             ushort x1 = BitConverter.ToUInt16(data, 2);
             ushort y1 = BitConverter.ToUInt16(data, 4);
 
-            if (isPressed1)
-            {
-                // 按下：计算并保存触摸区域
-                ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x1, y1);
-                touches[fingerId1] = touchMask;
-                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId1} 按下 at ({x1}, {y1}) -> 0x{touchMask:X}");
-            }
-            else
-            {
-                // 松开：移除该手指的触摸区域
-                if (touches.ContainsKey(fingerId1))
-                {
-                    touches.Remove(fingerId1);
-                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId1} 松开");
-                }
-            }
+            HandleFinger(x1, y1, fingerId1, isPressed1, playerNo);
         }
 
         // 解析第二根手指
@@ -132,22 +119,29 @@ public class ExclusiveTouch
             // 只有坐标非零才处理第二根手指
             if (x2 != 0 || y2 != 0)
             {
-                if (isPressed2)
-                {
-                    ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x2, y2);
-                    touches[fingerId2] = touchMask;
-                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId2} 按下 at ({x2}, {y2}) -> 0x{touchMask:X}");
-                }
-                else
-                {
-                    if (touches.ContainsKey(fingerId2))
-                    {
-                        touches.Remove(fingerId2);
-                        MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId2} 松开");
-                    }
-                }
+                HandleFinger(x2, y2, fingerId2, isPressed2, playerNo);
             }
         }
+    }
+
+    private static void HandleFinger(ushort x, ushort y, int fingerId, bool isPressed, int playerNo)
+    {
+        var touches = activeTouches[playerNo];
+        if (isPressed)
+        {
+            ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x, y);
+            touches[fingerId] = touchMask;
+            MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 按下 at ({x}, {y}) -> 0x{touchMask:X}");
+        }
+        else
+        {
+            if (touches.ContainsKey(fingerId))
+            {
+                touches.Remove(fingerId);
+                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 松开");
+            }
+        }
+
     }
 
     public static ulong GetTouchState(int playerNo)

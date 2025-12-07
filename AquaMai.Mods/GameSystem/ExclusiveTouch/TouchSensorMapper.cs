@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
-public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, float radius)
+public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, float radius, bool flip)
 {
     private static readonly Vector2[][] _sensors = [
         // A1 (0)
@@ -216,6 +216,15 @@ public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, f
     public ulong ParseTouchPoint(float x, float y)
     {
         var canvasPoint = new Vector2(MapCoordinate(x, minX, maxX, 0, 1440), MapCoordinate(y, minY, maxY, 0, 1440));
+        if (canvasPoint.x < 0 || canvasPoint.x > 1440 || canvasPoint.y < 0 || canvasPoint.y > 1440)
+        {
+            return 0;
+        }
+
+        if (flip)
+        {
+            canvasPoint = new Vector2(canvasPoint.y, canvasPoint.x);
+        }
 
         ulong res = 0;
 
