@@ -2,12 +2,10 @@ using System;
 using System.Collections.Generic;
 using AquaMai.Config.Attributes;
 using LibUsbDotNet.Main;
-using HarmonyLib;
-using IO;
 using LibUsbDotNet;
-using Manager;
 using MelonLoader;
 using UnityEngine;
+using AquaMai.Core.Helpers;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
@@ -80,6 +78,7 @@ public class ExclusiveTouch
                 };
 
                 devices[0] = device;
+                TouchStatusProvider.RegisterTouchStatusProvider(0, GetTouchState);
             }
         }
     }
@@ -151,32 +150,17 @@ public class ExclusiveTouch
         }
     }
 
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(NewTouchPanel), "Start")]
-    public static bool PreNewTouchPanelStart(uint ____monitorIndex, ref NewTouchPanel.StatusEnum ___Status, ref bool ____isRunning)
+    public static ulong GetTouchState(int playerNo)
     {
-        if (devices[____monitorIndex] == null) return true;
-        ___Status = NewTouchPanel.StatusEnum.Drive;
-        ____isRunning = true;
-        MelonLogger.Msg($"[ExclusiveTouch] NewTouchPanel Start {____monitorIndex + 1}P");
-        return false;
-    }
+        if (activeTouches[playerNo] == null) return 0;
 
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(NewTouchPanel), "Execute")]
-    public static bool PreNewTouchPanelExecute(uint ____monitorIndex, ref uint ____dataCounter)
-    {
-        if (devices[____monitorIndex] == null) return true;
-        
         // 合并所有活动手指的触摸区域
         ulong currentTouchData = 0;
-        foreach (var touchMask in activeTouches[____monitorIndex].Values)
+        foreach (var touchMask in activeTouches[playerNo].Values)
         {
             currentTouchData |= touchMask;
         }
-        
-        // MelonLogger.Msg($"[ExclusiveTouch] Execute {____monitorIndex + 1}P: 0x{currentTouchData:X} (活动手指数: {activeTouches[____monitorIndex].Count})");
-        InputManager.SetNewTouchPanel(____monitorIndex, currentTouchData, ++____dataCounter);
-        return false;
+
+        return currentTouchData;
     }
 }

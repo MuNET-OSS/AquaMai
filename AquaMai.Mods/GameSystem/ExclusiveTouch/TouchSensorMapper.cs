@@ -210,13 +210,12 @@ public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, f
 
     private static Vector2[] MakePolygon(int offsetX, int offsetY, Vector2[] points)
     {
-        return points.Select(p => new Vector2(p.x + offsetX, p.y + offsetY)).ToArray();
+        return points.Select(p => p + new Vector2(offsetX, offsetY)).ToArray();
     }
 
     public ulong ParseTouchPoint(float x, float y)
     {
         var canvasPoint = new Vector2(MapCoordinate(x, minX, maxX, 0, 1440), MapCoordinate(y, minY, maxY, 0, 1440));
-        MelonLogger.Msg($"[TouchSensorMapper] CanvasPoint: {canvasPoint}");
 
         ulong res = 0;
 
