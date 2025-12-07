@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AquaMai.Config.Attributes;
 using LibUsbDotNet.Main;
 using HarmonyLib;
@@ -42,7 +43,8 @@ public class ExclusiveTouch
 
     private static UsbDevice[] devices = new UsbDevice[2];
     private static TouchSensorMapper[] touchSensorMappers = new TouchSensorMapper[2];
-    private static ulong[] touchData = [0, 0];
+    // 持久化的触摸状态：每个手指ID对应的触摸区域掩码
+    private static Dictionary<int, ulong>[] activeTouches = [new Dictionary<int, ulong>(), new Dictionary<int, ulong>()];
 
     public static void OnBeforePatch()
     {
@@ -87,18 +89,66 @@ public class ExclusiveTouch
         if (e.Count < 14) return;
 
         byte[] data = e.Buffer;
+        byte reportId = data[0];
+        if (reportId != 0x0D) return;
 
-        // 解析数据
-        byte touchStatus = data[1];
-        ushort x = BitConverter.ToUInt16(data, 2);
-        ushort y = BitConverter.ToUInt16(data, 4);
+        var touches = activeTouches[playerNo];
 
-        MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: {touchStatus} - X: {x,5}, Y: {y,5}");
+        // 解析第一根手指
+        if (data.Length >= 7)
+        {
+            byte status1 = data[1];
+            int fingerId1 = (status1 >> 4) & 0x0F;  // 高4位：手指ID
+            bool isPressed1 = (status1 & 0x01) == 1; // 低位：按下状态
+            ushort x1 = BitConverter.ToUInt16(data, 2);
+            ushort y1 = BitConverter.ToUInt16(data, 4);
 
-        // 是松开，其他的位大概是触摸点是第几个（？
-        if ((touchStatus & 1) != 1) return;
+            if (isPressed1)
+            {
+                // 按下：计算并保存触摸区域
+                ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x1, y1);
+                touches[fingerId1] = touchMask;
+                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId1} 按下 at ({x1}, {y1}) -> 0x{touchMask:X}");
+            }
+            else
+            {
+                // 松开：移除该手指的触摸区域
+                if (touches.ContainsKey(fingerId1))
+                {
+                    touches.Remove(fingerId1);
+                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId1} 松开");
+                }
+            }
+        }
 
-        touchData[playerNo] |= touchSensorMappers[playerNo].ParseTouchPoint(x, y);
+        // 解析第二根手指
+        if (data.Length >= 14)
+        {
+            byte status2 = data[6];
+            int fingerId2 = (status2 >> 4) & 0x0F;
+            bool isPressed2 = (status2 & 0x01) == 1;
+            ushort x2 = BitConverter.ToUInt16(data, 7);
+            ushort y2 = BitConverter.ToUInt16(data, 9);
+
+            // 只有坐标非零才处理第二根手指
+            if (x2 != 0 || y2 != 0)
+            {
+                if (isPressed2)
+                {
+                    ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x2, y2);
+                    touches[fingerId2] = touchMask;
+                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId2} 按下 at ({x2}, {y2}) -> 0x{touchMask:X}");
+                }
+                else
+                {
+                    if (touches.ContainsKey(fingerId2))
+                    {
+                        touches.Remove(fingerId2);
+                        MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId2} 松开");
+                    }
+                }
+            }
+        }
     }
 
     [HarmonyPrefix]
@@ -117,9 +167,16 @@ public class ExclusiveTouch
     public static bool PreNewTouchPanelExecute(uint ____monitorIndex, ref uint ____dataCounter)
     {
         if (devices[____monitorIndex] == null) return true;
-        MelonLogger.Msg($"[ExclusiveTouch] Execute {____monitorIndex + 1}P: {touchData[____monitorIndex]:x8}");
-        InputManager.SetNewTouchPanel(____monitorIndex, touchData[____monitorIndex], ++____dataCounter);
-        touchData[____monitorIndex] = 0;
+        
+        // 合并所有活动手指的触摸区域
+        ulong currentTouchData = 0;
+        foreach (var touchMask in activeTouches[____monitorIndex].Values)
+        {
+            currentTouchData |= touchMask;
+        }
+        
+        // MelonLogger.Msg($"[ExclusiveTouch] Execute {____monitorIndex + 1}P: 0x{currentTouchData:X} (活动手指数: {activeTouches[____monitorIndex].Count})");
+        InputManager.SetNewTouchPanel(____monitorIndex, currentTouchData, ++____dataCounter);
         return false;
     }
 }
