@@ -6,6 +6,7 @@ using LibUsbDotNet;
 using MelonLoader;
 using UnityEngine;
 using AquaMai.Core.Helpers;
+using System.Threading;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
@@ -26,7 +27,12 @@ public class ExclusiveTouch
     public static readonly byte configuration1p = 1;
     [ConfigEntry]
     public static readonly int interfaceNumber1p = 0;
-
+    [ConfigEntry]
+    public static readonly int reportId1p;
+    [ConfigEntry]
+    public static readonly ReadEndpointID endpoint1p = ReadEndpointID.Ep01;
+    [ConfigEntry]
+    public static readonly int packetSize1p = 64;
     [ConfigEntry]
     public static readonly int minX1p;
     [ConfigEntry]
@@ -67,34 +73,64 @@ public class ExclusiveTouch
                     wholeDevice.ClaimInterface(interfaceNumber1p);
                 }
                 touchSensorMappers[0] = new TouchSensorMapper(minX1p, minY1p, maxX1p, maxY1p, radius1p, flip1p);
-                var reader = device.OpenEndpointReader(ReadEndpointID.Ep01);
-                reader.DataReceived += (sender, e) => OnTouchData(0, sender, e);
-                reader.DataReceivedEnabled = true;
                 Application.quitting += () =>
                 {
+                    devices[0] = null;
                     if (wholeDevice != null)
                     {
-                        wholeDevice.ReleaseInterface(0);
+                        wholeDevice.ReleaseInterface(interfaceNumber1p);
                     }
                     device.Close();
                 };
 
                 devices[0] = device;
+                Thread readThread = new Thread(() => ReadThread(0));
+                readThread.Start();
                 TouchStatusProvider.RegisterTouchStatusProvider(0, GetTouchState);
             }
         }
     }
 
-    private static void OnTouchData(int playerNo, object sender, EndpointDataEventArgs e)
+    private static void ReadThread(int playerNo)
     {
-        if (e.Count < 14) return;
+        byte[] buffer = new byte[packetSize1p];
+        var reader = devices[playerNo].OpenEndpointReader(endpoint1p);
+        while (devices[playerNo] != null)
+        {
+            int bytesRead;
+            ErrorCode ec = reader.Read(buffer, 100, out bytesRead); // 100ms 超时
 
-        byte[] data = e.Buffer;
+            if (ec != ErrorCode.None)
+            {
+                if (ec == ErrorCode.IoTimedOut) continue; // 超时就继续等
+                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误: {ec}");
+                break;
+            }
+
+            if (bytesRead > 0)
+            {
+                OnTouchData(playerNo, buffer);
+            }
+        }
+    }
+
+    private static void OnTouchData(int playerNo, byte[] data)
+    {
         byte reportId = data[0];
-        if (reportId != 0x0D) return;
+        if (reportId != reportId1p) return;
 
-        var touches = activeTouches[playerNo];
-
+#if true // PDX
+        for (int i = 0; i < 10; i++)
+        {
+            var index = i * 6 + 1;
+            if (data[index] == 0) continue;
+            bool isPressed = (data[index] & 0x01) == 1;
+            var fingerId = data[index + 1];
+            ushort x = BitConverter.ToUInt16(data, index + 2);
+            ushort y = BitConverter.ToUInt16(data, index + 4);
+            HandleFinger(x, y, fingerId, isPressed, playerNo);
+        }
+#else // 凌莞的便携屏
         // 解析第一根手指
         if (data.Length >= 7)
         {
@@ -122,6 +158,7 @@ public class ExclusiveTouch
                 HandleFinger(x2, y2, fingerId2, isPressed2, playerNo);
             }
         }
+#endif
     }
 
     private static void HandleFinger(ushort x, ushort y, int fingerId, bool isPressed, int playerNo)

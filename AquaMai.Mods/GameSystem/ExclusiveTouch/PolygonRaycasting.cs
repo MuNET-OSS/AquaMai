@@ -46,8 +46,6 @@ public static class PolygonRaycasting
         for (int i = 0; i < polygon.Length; i++)
         {
             Vector2 currentVertex = polygon[i];
-            float currentX = currentVertex.x;
-            float currentY = currentVertex.y;
             if (Vector2.Distance(circleCenter, currentVertex) < radius)
             {
                 return true;
