@@ -51,6 +51,7 @@ public class ExclusiveTouch
     private static TouchSensorMapper[] touchSensorMappers = new TouchSensorMapper[2];
     // 持久化的触摸状态：每个手指ID对应的触摸区域掩码
     private static Dictionary<int, ulong>[] activeTouches = [[], []];
+    private static readonly object[] touchLocks = [new object(), new object()];
 
     public static void OnBeforePatch()
     {
@@ -163,35 +164,40 @@ public class ExclusiveTouch
 
     private static void HandleFinger(ushort x, ushort y, int fingerId, bool isPressed, int playerNo)
     {
-        var touches = activeTouches[playerNo];
-        if (isPressed)
+        lock (touchLocks[playerNo])
         {
-            ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x, y);
-            touches[fingerId] = touchMask;
-            MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 按下 at ({x}, {y}) -> 0x{touchMask:X}");
-        }
-        else
-        {
-            if (touches.ContainsKey(fingerId))
+            var touches = activeTouches[playerNo];
+            if (isPressed)
             {
-                touches.Remove(fingerId);
-                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 松开");
+                ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x, y);
+                touches[fingerId] = touchMask;
+                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 按下 at ({x}, {y}) -> 0x{touchMask:X}");
+            }
+            else
+            {
+                if (touches.ContainsKey(fingerId))
+                {
+                    touches.Remove(fingerId);
+                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 松开");
+                }
             }
         }
-
     }
 
     public static ulong GetTouchState(int playerNo)
     {
         if (activeTouches[playerNo] == null) return 0;
 
-        // 合并所有活动手指的触摸区域
-        ulong currentTouchData = 0;
-        foreach (var touchMask in activeTouches[playerNo].Values)
+        lock (touchLocks[playerNo])
         {
-            currentTouchData |= touchMask;
-        }
+            // 合并所有活动手指的触摸区域
+            ulong currentTouchData = 0;
+            foreach (var touchMask in activeTouches[playerNo].Values)
+            {
+                currentTouchData |= touchMask;
+            }
 
-        return currentTouchData;
+            return currentTouchData;
+        }
     }
 }
