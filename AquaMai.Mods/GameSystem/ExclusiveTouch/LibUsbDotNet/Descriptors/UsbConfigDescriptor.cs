@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Descriptors;
 
@@ -20,18 +19,6 @@ public class UsbConfigDescriptor : UsbDescriptor
 	public readonly byte Attributes;
 
 	public readonly byte MaxPower;
-
-	internal UsbConfigDescriptor(MonoUsbConfigDescriptor descriptor)
-	{
-		Attributes = descriptor.bmAttributes;
-		ConfigID = descriptor.bConfigurationValue;
-		DescriptorType = descriptor.bDescriptorType;
-		InterfaceCount = descriptor.bNumInterfaces;
-		Length = descriptor.bLength;
-		MaxPower = descriptor.MaxPower;
-		StringIndex = descriptor.iConfiguration;
-		TotalLength = descriptor.wTotalLength;
-	}
 
 	internal UsbConfigDescriptor()
 	{

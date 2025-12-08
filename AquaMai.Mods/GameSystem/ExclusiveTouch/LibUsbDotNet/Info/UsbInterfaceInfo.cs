@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using LibUsbDotNet.Descriptors;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Info;
 
@@ -42,20 +41,6 @@ public class UsbInterfaceInfo : UsbBaseInfo
 		mUsbDevice = usbDevice;
 		mUsbInterfaceDescriptor = new UsbInterfaceDescriptor();
 		Helper.BytesToObject(descriptor, 0, Math.Min(UsbInterfaceDescriptor.Size, descriptor[0]), mUsbInterfaceDescriptor);
-	}
-
-	internal UsbInterfaceInfo(UsbDevice usbDevice, MonoUsbAltInterfaceDescriptor monoUSBAltInterfaceDescriptor)
-	{
-		mUsbDevice = usbDevice;
-		if (monoUSBAltInterfaceDescriptor.ExtraLength > 0)
-		{
-			mRawDescriptors.Add(monoUSBAltInterfaceDescriptor.ExtraBytes);
-		}
-		mUsbInterfaceDescriptor = new UsbInterfaceDescriptor(monoUSBAltInterfaceDescriptor);
-		foreach (MonoUsbEndpointDescriptor endpoint in monoUSBAltInterfaceDescriptor.EndpointList)
-		{
-			mEndpointInfo.Add(new UsbEndpointInfo(endpoint));
-		}
 	}
 
 	public override string ToString()

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Descriptors;
 
@@ -35,24 +34,6 @@ public class UsbDeviceDescriptor : UsbDescriptor
 
 	internal UsbDeviceDescriptor()
 	{
-	}
-
-	internal UsbDeviceDescriptor(MonoUsbDeviceDescriptor usbDeviceDescriptor)
-	{
-		BcdDevice = usbDeviceDescriptor.BcdDevice;
-		BcdUsb = usbDeviceDescriptor.BcdUsb;
-		Class = usbDeviceDescriptor.Class;
-		ConfigurationCount = usbDeviceDescriptor.ConfigurationCount;
-		DescriptorType = usbDeviceDescriptor.DescriptorType;
-		Length = usbDeviceDescriptor.Length;
-		ManufacturerStringIndex = usbDeviceDescriptor.ManufacturerStringIndex;
-		MaxPacketSize0 = usbDeviceDescriptor.MaxPacketSize0;
-		ProductID = usbDeviceDescriptor.ProductID;
-		ProductStringIndex = usbDeviceDescriptor.ProductStringIndex;
-		Protocol = usbDeviceDescriptor.Protocol;
-		SerialStringIndex = usbDeviceDescriptor.SerialStringIndex;
-		SubClass = usbDeviceDescriptor.SubClass;
-		VendorID = usbDeviceDescriptor.VendorID;
 	}
 
 	public override string ToString()

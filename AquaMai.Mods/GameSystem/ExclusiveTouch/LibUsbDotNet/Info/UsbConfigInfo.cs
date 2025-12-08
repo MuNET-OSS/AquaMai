@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using LibUsbDotNet.Descriptors;
-using LibUsbDotNet.LudnMonoLibUsb;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Info;
 
@@ -71,20 +69,6 @@ public class UsbConfigInfo : UsbBaseInfo
 					i--;
 				}
 				break;
-			}
-		}
-	}
-
-	internal UsbConfigInfo(MonoUsbDevice usbDevice, MonoUsbConfigDescriptor configDescriptor)
-	{
-		mUsbDevice = usbDevice;
-		mUsbConfigDescriptor = new UsbConfigDescriptor(configDescriptor);
-		foreach (MonoUsbInterface @interface in configDescriptor.InterfaceList)
-		{
-			foreach (MonoUsbAltInterfaceDescriptor altInterface in @interface.AltInterfaceList)
-			{
-				UsbInterfaceInfo item = new UsbInterfaceInfo(mUsbDevice, altInterface);
-				mInterfaceList.Add(item);
 			}
 		}
 	}

@@ -1,7 +1,6 @@
 using System;
 using LibUsbDotNet.Descriptors;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Info;
 
@@ -15,11 +14,6 @@ public class UsbEndpointInfo : UsbBaseInfo
 	{
 		mUsbEndpointDescriptor = new UsbEndpointDescriptor();
 		Helper.BytesToObject(descriptor, 0, Math.Min(UsbEndpointDescriptor.Size, descriptor[0]), mUsbEndpointDescriptor);
-	}
-
-	internal UsbEndpointInfo(MonoUsbEndpointDescriptor monoUsbEndpointDescriptor)
-	{
-		mUsbEndpointDescriptor = new UsbEndpointDescriptor(monoUsbEndpointDescriptor);
 	}
 
 	public override string ToString()

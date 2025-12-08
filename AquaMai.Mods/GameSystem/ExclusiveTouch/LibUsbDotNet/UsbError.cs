@@ -1,7 +1,6 @@
 using System;
 using LibUsbDotNet.Internal;
 using LibUsbDotNet.Main;
-using MonoLibUsb;
 
 namespace LibUsbDotNet;
 
@@ -69,11 +68,6 @@ public class UsbError : EventArgs
 		if (errorCode == ErrorCode.Win32Error && !UsbDevice.IsLinux && ret != 0)
 		{
 			win32ErrorString = Kernel32.FormatSystemMessage(ret);
-		}
-		else if (errorCode == ErrorCode.MonoApiError && ret != 0)
-		{
-			MonoUsbError monoUsbError = (MonoUsbError)ret;
-			win32ErrorString = monoUsbError.ToString() + ":" + MonoUsbApi.StrError((MonoUsbError)ret);
 		}
 		UsbError usbError = new UsbError(errorCode, ret, win32ErrorString, description, sender);
 		lock (mLastErrorString)

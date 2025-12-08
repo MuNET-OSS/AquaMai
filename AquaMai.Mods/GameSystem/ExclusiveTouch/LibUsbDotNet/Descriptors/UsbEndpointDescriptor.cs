@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Descriptors;
 
@@ -23,17 +22,6 @@ public class UsbEndpointDescriptor : UsbDescriptor
 
 	internal UsbEndpointDescriptor()
 	{
-	}
-
-	internal UsbEndpointDescriptor(MonoUsbEndpointDescriptor descriptor)
-	{
-		Attributes = descriptor.bmAttributes;
-		DescriptorType = descriptor.bDescriptorType;
-		EndpointID = descriptor.bEndpointAddress;
-		Interval = descriptor.bInterval;
-		Length = descriptor.bLength;
-		MaxPacketSize = descriptor.wMaxPacketSize;
-		SynchAddress = descriptor.bSynchAddress;
 	}
 
 	public override string ToString()

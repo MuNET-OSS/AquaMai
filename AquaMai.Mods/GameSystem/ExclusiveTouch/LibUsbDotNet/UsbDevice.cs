@@ -7,11 +7,9 @@ using LibUsbDotNet.Info;
 using LibUsbDotNet.Internal;
 using LibUsbDotNet.Internal.LibUsb;
 using LibUsbDotNet.LibUsb;
-using LibUsbDotNet.LudnMonoLibUsb;
 using LibUsbDotNet.Main;
 using LibUsbDotNet.WinUsb;
 using LibUsbDotNet.WinUsb.Internal;
-using MonoLibUsb;
 
 namespace LibUsbDotNet;
 
@@ -96,10 +94,6 @@ public abstract class UsbDevice : IDisposable
 			UsbRegDeviceList usbRegDeviceList = new UsbRegDeviceList();
 			if (HasLibUsbWinBackDriver && ForceLibUsbWinBack)
 			{
-				foreach (MonoUsbDevice monoUsbDevice in MonoUsbDevice.MonoUsbDeviceList)
-				{
-					usbRegDeviceList.Add(new LegacyUsbRegistry(monoUsbDevice));
-				}
 			}
 			else if (!ForceLegacyLibUsb && KernelType == LibUsbKernelType.NativeLibUsb)
 			{
@@ -316,7 +310,6 @@ public abstract class UsbDevice : IDisposable
 				{
 					try
 					{
-						MonoUsbApi.StrError(MonoUsbError.Success);
 						mHasLibUsbWinBackDriver = true;
 					}
 					catch (Exception)
@@ -660,15 +653,6 @@ public abstract class UsbDevice : IDisposable
 
 	public static void Exit()
 	{
-		lock (MonoUsbDevice.OLockDeviceList)
-		{
-			if (MonoUsbDevice.mMonoUSBProfileList != null)
-			{
-				MonoUsbDevice.mMonoUSBProfileList.Close();
-			}
-			MonoUsbDevice.mMonoUSBProfileList = null;
-		}
-		MonoUsbApi.StopAndExit();
 	}
 
 	void IDisposable.Dispose()

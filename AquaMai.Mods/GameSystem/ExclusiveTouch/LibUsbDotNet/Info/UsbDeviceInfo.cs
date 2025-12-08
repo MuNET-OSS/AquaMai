@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using LibUsbDotNet.Descriptors;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Info;
 
@@ -101,26 +100,6 @@ public class UsbDeviceInfo
 	{
 		mUsbDevice = usbDevice;
 		GetDeviceDescriptor(mUsbDevice, out mDeviceDescriptor);
-	}
-
-	internal UsbDeviceInfo(UsbDevice usbDevice, MonoUsbDeviceDescriptor usbDeviceDescriptor)
-	{
-		mUsbDevice = usbDevice;
-		mDeviceDescriptor = new UsbDeviceDescriptor();
-		mDeviceDescriptor.BcdDevice = usbDeviceDescriptor.BcdDevice;
-		mDeviceDescriptor.BcdUsb = usbDeviceDescriptor.BcdUsb;
-		mDeviceDescriptor.Class = usbDeviceDescriptor.Class;
-		mDeviceDescriptor.ConfigurationCount = usbDeviceDescriptor.ConfigurationCount;
-		mDeviceDescriptor.DescriptorType = usbDeviceDescriptor.DescriptorType;
-		mDeviceDescriptor.Length = usbDeviceDescriptor.Length;
-		mDeviceDescriptor.ManufacturerStringIndex = usbDeviceDescriptor.ManufacturerStringIndex;
-		mDeviceDescriptor.MaxPacketSize0 = usbDeviceDescriptor.MaxPacketSize0;
-		mDeviceDescriptor.ProductID = usbDeviceDescriptor.ProductID;
-		mDeviceDescriptor.ProductStringIndex = usbDeviceDescriptor.ProductStringIndex;
-		mDeviceDescriptor.Protocol = usbDeviceDescriptor.Protocol;
-		mDeviceDescriptor.SerialStringIndex = usbDeviceDescriptor.SerialStringIndex;
-		mDeviceDescriptor.SubClass = usbDeviceDescriptor.SubClass;
-		mDeviceDescriptor.VendorID = usbDeviceDescriptor.VendorID;
 	}
 
 	public override string ToString()

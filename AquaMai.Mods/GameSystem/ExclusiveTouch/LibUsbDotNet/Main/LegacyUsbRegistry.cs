@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using LibUsbDotNet.Internal.LibUsb;
 using LibUsbDotNet.LibUsb;
-using LibUsbDotNet.LudnMonoLibUsb;
 using Microsoft.Win32.SafeHandles;
 
 namespace LibUsbDotNet.Main;
@@ -69,15 +68,6 @@ public class LegacyUsbRegistry : UsbRegistry
 		get
 		{
 			List<LegacyUsbRegistry> list = new List<LegacyUsbRegistry>();
-			if (UsbDevice.IsLinux)
-			{
-				foreach (MonoUsbDevice monoUsbDevice in MonoUsbDevice.MonoUsbDeviceList)
-				{
-					list.Add(new LegacyUsbRegistry(monoUsbDevice));
-				}
-			}
-			else
-			{
 				for (int i = 1; i < 256; i++)
 				{
 					string deviceNameString = LibUsbDriverIO.GetDeviceNameString(i);
@@ -98,7 +88,6 @@ public class LegacyUsbRegistry : UsbRegistry
 						safeFileHandle.Dispose();
 					}
 				}
-			}
 			return list;
 		}
 	}

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using LibUsbDotNet.Main;
-using MonoLibUsb.Descriptors;
 
 namespace LibUsbDotNet.Descriptors;
 
@@ -48,18 +47,5 @@ public class UsbInterfaceDescriptor : UsbDescriptor
 
 	internal UsbInterfaceDescriptor()
 	{
-	}
-
-	internal UsbInterfaceDescriptor(MonoUsbAltInterfaceDescriptor altInterfaceDescriptor)
-	{
-		AlternateID = altInterfaceDescriptor.bAlternateSetting;
-		Class = altInterfaceDescriptor.bInterfaceClass;
-		DescriptorType = altInterfaceDescriptor.bDescriptorType;
-		EndpointCount = altInterfaceDescriptor.bNumEndpoints;
-		InterfaceID = altInterfaceDescriptor.bInterfaceNumber;
-		Length = altInterfaceDescriptor.bLength;
-		Protocol = altInterfaceDescriptor.bInterfaceProtocol;
-		StringIndex = altInterfaceDescriptor.iInterface;
-		SubClass = altInterfaceDescriptor.bInterfaceSubClass;
 	}
 }
