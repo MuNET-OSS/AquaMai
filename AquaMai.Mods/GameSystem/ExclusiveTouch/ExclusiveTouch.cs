@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using AquaMai.Config.Attributes;
 using LibUsbDotNet.Main;
 using LibUsbDotNet;
@@ -49,9 +48,22 @@ public class ExclusiveTouch
 
     private static UsbDevice[] devices = new UsbDevice[2];
     private static TouchSensorMapper[] touchSensorMappers = new TouchSensorMapper[2];
-    // 持久化的触摸状态：每个手指ID对应的触摸区域掩码
-    private static Dictionary<int, ulong>[] activeTouches = [[], []];
+
+    private class TouchPoint
+    {
+        public ulong Mask;
+        public DateTime LastUpdate;
+        public bool IsActive;
+    }
+
+    // [玩家][手指ID]
+    private static readonly TouchPoint[][] allFingerPoints = new TouchPoint[2][];
+
+    // 防吃键
+    private static readonly ulong[] frameAccumulators = new ulong[2];
     private static readonly object[] touchLocks = [new object(), new object()];
+
+    private const int TouchTimeoutMs = 20;
 
     public static void OnBeforePatch()
     {
@@ -83,6 +95,12 @@ public class ExclusiveTouch
                     }
                     device.Close();
                 };
+                
+                allFingerPoints[0] = new TouchPoint[256];
+                for (int i = 0; i < 256; i++)
+                {
+                    allFingerPoints[0][i] = new TouchPoint();
+                }
 
                 devices[0] = device;
                 Thread readThread = new Thread(() => ReadThread(0));
@@ -164,20 +182,33 @@ public class ExclusiveTouch
 
     private static void HandleFinger(ushort x, ushort y, int fingerId, bool isPressed, int playerNo)
     {
+        // 安全检查，防止越界
+        if (fingerId < 0 || fingerId >= 256) return;
+
         lock (touchLocks[playerNo])
         {
-            var touches = activeTouches[playerNo];
+            var point = allFingerPoints[playerNo][fingerId];
+
             if (isPressed)
             {
                 ulong touchMask = touchSensorMappers[playerNo].ParseTouchPoint(x, y);
-                touches[fingerId] = touchMask;
-                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 按下 at ({x}, {y}) -> 0x{touchMask:X}");
+
+                if (!point.IsActive)
+                {
+                    point.IsActive = true;
+                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 按下 at ({x}, {y}) -> 0x{touchMask:X}");
+                }
+
+                point.Mask = touchMask;
+                point.LastUpdate = DateTime.Now;
+                
+                frameAccumulators[playerNo] |= touchMask;
             }
             else
             {
-                if (touches.ContainsKey(fingerId))
+                if (point.IsActive)
                 {
-                    touches.Remove(fingerId);
+                    point.IsActive = false;
                     MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{fingerId} 松开");
                 }
             }
@@ -186,18 +217,33 @@ public class ExclusiveTouch
 
     public static ulong GetTouchState(int playerNo)
     {
-        if (activeTouches[playerNo] == null) return 0;
-
         lock (touchLocks[playerNo])
         {
-            // 合并所有活动手指的触摸区域
             ulong currentTouchData = 0;
-            foreach (var touchMask in activeTouches[playerNo].Values)
-            {
-                currentTouchData |= touchMask;
-            }
+            var now = DateTime.Now;
+            var points = allFingerPoints[playerNo];
 
-            return currentTouchData;
+            for (int i = 0; i < points.Length; i++)
+            {
+                var point = points[i];
+                if (point.IsActive)
+                {
+                    if ((now - point.LastUpdate).TotalMilliseconds > TouchTimeoutMs)
+                    {
+                        point.IsActive = false;
+                        MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 手指{i} 超时自动释放");
+                    }
+                    else
+                    {
+                        currentTouchData |= point.Mask;
+                    }
+                }
+            }
+            
+            ulong finalResult = currentTouchData | frameAccumulators[playerNo];
+            frameAccumulators[playerNo] = 0;
+
+            return finalResult;
         }
     }
 }
