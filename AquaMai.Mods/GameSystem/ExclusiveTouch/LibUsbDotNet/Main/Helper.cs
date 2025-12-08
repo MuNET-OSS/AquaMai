@@ -28,8 +28,6 @@ public static class Helper
 		}
 	}
 
-	private static object mIsLinux;
-
 	private static OperatingSystem mOs;
 
 	public static OperatingSystem OSVersion
@@ -41,33 +39,6 @@ public static class Helper
 				mOs = Environment.OSVersion;
 			}
 			return mOs;
-		}
-	}
-
-	public static bool IsLinux
-	{
-		get
-		{
-			if (mIsLinux == null)
-			{
-				switch (OSVersion.Platform.ToString())
-				{
-				case "Win32S":
-				case "Xbox":
-				case "Win32Windows":
-				case "Win32NT":
-				case "WinCE":
-					mIsLinux = false;
-					break;
-				case "MacOSX":
-				case "Unix":
-					mIsLinux = true;
-					break;
-				default:
-					throw new NotSupportedException($"Operating System:{OSVersion} not supported.");
-				}
-			}
-			return (bool)mIsLinux;
 		}
 	}
 

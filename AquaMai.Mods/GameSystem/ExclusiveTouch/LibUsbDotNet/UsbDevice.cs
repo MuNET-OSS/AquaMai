@@ -62,7 +62,7 @@ public abstract class UsbDevice : IDisposable
 
 	protected readonly List<int> mClaimedInterfaces = new List<int>();
 
-	public static bool ForceLegacyLibUsb = IsLinux;
+	public const bool ForceLegacyLibUsb = false;
 
 	public static bool ForceLibUsbWinBack = false;
 
@@ -204,7 +204,7 @@ public abstract class UsbDevice : IDisposable
 		get
 		{
 			UsbRegDeviceList usbRegDeviceList = new UsbRegDeviceList();
-			if (IsLinux || ForceLibUsbWinBack)
+			if (ForceLibUsbWinBack)
 			{
 				return usbRegDeviceList;
 			}
@@ -224,7 +224,7 @@ public abstract class UsbDevice : IDisposable
 		get
 		{
 			UsbRegDeviceList usbRegDeviceList = new UsbRegDeviceList();
-			if (IsLinux || ForceLibUsbWinBack)
+			if (ForceLibUsbWinBack)
 			{
 				return usbRegDeviceList;
 			}
@@ -248,21 +248,14 @@ public abstract class UsbDevice : IDisposable
 		{
 			if (mHasWinUsbDriver == null)
 			{
-				if (IsLinux)
+				try
+				{
+					WinUsbAPI.WinUsb_Free(IntPtr.Zero);
+					mHasWinUsbDriver = true;
+				}
+				catch (Exception)
 				{
 					mHasWinUsbDriver = false;
-				}
-				else
-				{
-					try
-					{
-						WinUsbAPI.WinUsb_Free(IntPtr.Zero);
-						mHasWinUsbDriver = true;
-					}
-					catch (Exception)
-					{
-						mHasWinUsbDriver = false;
-					}
 				}
 			}
 			return (bool)mHasWinUsbDriver;
@@ -275,21 +268,14 @@ public abstract class UsbDevice : IDisposable
 		{
 			if (mHasLibusbKDriver == null)
 			{
-				if (IsLinux)
+				try
+				{
+					LibusbKAPI.UsbK_Free(IntPtr.Zero);
+					mHasLibusbKDriver = true;
+				}
+				catch (Exception)
 				{
 					mHasLibusbKDriver = false;
-				}
-				else
-				{
-					try
-					{
-						LibusbKAPI.UsbK_Free(IntPtr.Zero);
-						mHasLibusbKDriver = true;
-					}
-					catch (Exception)
-					{
-						mHasLibusbKDriver = false;
-					}
 				}
 			}
 			return (bool)mHasLibusbKDriver;
@@ -302,12 +288,6 @@ public abstract class UsbDevice : IDisposable
 		{
 			if (mHasLibUsbWinBackDriver == null)
 			{
-				if (IsLinux)
-				{
-					mHasLibUsbWinBackDriver = false;
-				}
-				else
-				{
 					try
 					{
 						mHasLibUsbWinBackDriver = true;
@@ -316,13 +296,10 @@ public abstract class UsbDevice : IDisposable
 					{
 						mHasLibUsbWinBackDriver = false;
 					}
-				}
 			}
 			return (bool)mHasLibUsbWinBackDriver;
 		}
 	}
-
-	public static bool IsLinux => Helper.IsLinux;
 
 	public static LibUsbKernelType KernelType
 	{
@@ -330,18 +307,11 @@ public abstract class UsbDevice : IDisposable
 		{
 			if (mLibUsbKernelType == LibUsbKernelType.Unknown)
 			{
-				if (IsLinux)
-				{
-					mLibUsbKernelType = LibUsbKernelType.MonoLibUsb;
-				}
-				else
-				{
 					UsbKernelVersion kernelVersion = KernelVersion;
 					if (!kernelVersion.IsEmpty)
 					{
 						mLibUsbKernelType = ((kernelVersion.BcdLibUsbDotNetKernelMod != 0) ? LibUsbKernelType.NativeLibUsb : LibUsbKernelType.LegacyLibUsb);
 					}
-				}
 			}
 			return mLibUsbKernelType;
 		}
@@ -353,27 +323,20 @@ public abstract class UsbDevice : IDisposable
 		{
 			if (mUsbKernelVersion.IsEmpty)
 			{
-				if (IsLinux)
+				for (int i = 1; i < 256; i++)
 				{
-					mUsbKernelVersion = new UsbKernelVersion(1, 0, 0, 0, 0);
-				}
-				else
-				{
-					for (int i = 1; i < 256; i++)
+					if (LibUsbDevice.Open(LibUsbDriverIO.GetDeviceNameString(i), out var usbDevice))
 					{
-						if (LibUsbDevice.Open(LibUsbDriverIO.GetDeviceNameString(i), out var usbDevice))
+						LibUsbRequest libUsbRequest = new LibUsbRequest();
+						GCHandle gCHandle = GCHandle.Alloc(libUsbRequest, GCHandleType.Pinned);
+						int ret;
+						bool num = usbDevice.UsbIoSync(LibUsbIoCtl.GET_VERSION, libUsbRequest, LibUsbRequest.Size, gCHandle.AddrOfPinnedObject(), LibUsbRequest.Size, out ret);
+						gCHandle.Free();
+						usbDevice.Close();
+						if (num && ret == LibUsbRequest.Size)
 						{
-							LibUsbRequest libUsbRequest = new LibUsbRequest();
-							GCHandle gCHandle = GCHandle.Alloc(libUsbRequest, GCHandleType.Pinned);
-							int ret;
-							bool num = usbDevice.UsbIoSync(LibUsbIoCtl.GET_VERSION, libUsbRequest, LibUsbRequest.Size, gCHandle.AddrOfPinnedObject(), LibUsbRequest.Size, out ret);
-							gCHandle.Free();
-							usbDevice.Close();
-							if (num && ret == LibUsbRequest.Size)
-							{
-								mUsbKernelVersion = libUsbRequest.Version;
-								break;
-							}
+							mUsbKernelVersion = libUsbRequest.Version;
+							break;
 						}
 					}
 				}
@@ -501,7 +464,7 @@ public abstract class UsbDevice : IDisposable
 	{
 		foreach (UsbEndpointBase activeEndpoint in ActiveEndpoints)
 		{
-			if ((uint)activeEndpoint.EpNum == (uint)writeEndpointID)
+			if (activeEndpoint.EpNum == (uint)writeEndpointID)
 			{
 				return (UsbEndpointWriter)activeEndpoint;
 			}
@@ -619,7 +582,7 @@ public abstract class UsbDevice : IDisposable
 	{
 		foreach (UsbEndpointBase mActiveEndpoint in mActiveEndpoints)
 		{
-			if ((uint)mActiveEndpoint.EpNum == (uint)readEndpointID)
+			if (mActiveEndpoint.EpNum == (uint)readEndpointID)
 			{
 				return (UsbEndpointReader)mActiveEndpoint;
 			}
@@ -662,6 +625,6 @@ public abstract class UsbDevice : IDisposable
 
 	internal static void FireUsbError(object sender, UsbError usbError)
 	{
-		UsbDevice.UsbErrorEvent?.Invoke(sender, usbError);
+		UsbErrorEvent?.Invoke(sender, usbError);
 	}
 }

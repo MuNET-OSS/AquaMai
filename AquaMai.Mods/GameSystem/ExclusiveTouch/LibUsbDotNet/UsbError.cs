@@ -65,7 +65,7 @@ public class UsbError : EventArgs
 	internal static UsbError Error(ErrorCode errorCode, int ret, string description, object sender)
 	{
 		string win32ErrorString = string.Empty;
-		if (errorCode == ErrorCode.Win32Error && !UsbDevice.IsLinux && ret != 0)
+		if (errorCode == ErrorCode.Win32Error && ret != 0)
 		{
 			win32ErrorString = Kernel32.FormatSystemMessage(ret);
 		}
