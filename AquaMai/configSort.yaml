@@ -88,6 +88,7 @@
 
 高级设置:
   - Fancy.HideMask
+  - GameSystem.LightBoardPort
   - GameSystem.TouchPanelPort
   - GameSystem.TouchPanelBaudRate
   - GameSystem.SkipBoardNoCheck
