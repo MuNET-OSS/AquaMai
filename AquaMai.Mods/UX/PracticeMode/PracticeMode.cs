@@ -261,7 +261,7 @@ public class PracticeMode
     [HarmonyPrefix]
     public static bool NotesManagerPostUpdateTimer(bool ____isPlaying, Stopwatch ____stopwatch, ref float ____curMSec, ref float ____curMSecPre, float ____msecStartGap)
     {
-        if (isInAdvDemo || GameManager.IsKaleidxScopeMode)
+        if (isInAdvDemo || Shim.IsKaleidxScopeMode)
         {
             return true;
         }

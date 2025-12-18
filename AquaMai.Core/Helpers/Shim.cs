@@ -230,4 +230,6 @@ public static class Shim
     }
 
     public static readonly Action<bool> Set_GameManager_IsNormalMode = GameInfo.GameVersion < 25500 ? (_) => { } : (value) => { GameManager.IsNormalMode = value; };
+    private static readonly Func<bool> IsKaleidxScopeModeGetter = GameInfo.GameVersion < 25000 ? () => false : () => GameManager.IsKaleidxScopeMode;
+    public static bool IsKaleidxScopeMode => IsKaleidxScopeModeGetter();
 }
