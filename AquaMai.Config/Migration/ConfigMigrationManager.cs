@@ -16,6 +16,7 @@ public class ConfigMigrationManager : IConfigMigrationManager
             new ConfigMigration_V2_0_V2_1(),
             new ConfigMigration_V2_1_V2_2(),
             new ConfigMigration_V2_2_V2_3(),
+            new ConfigMigration_V2_3_V2_4(),
         }.ToDictionary(m => m.FromVersion);
 
     public string LatestVersion { get; }
