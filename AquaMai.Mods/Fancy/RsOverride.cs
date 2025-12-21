@@ -17,7 +17,7 @@ namespace AquaMai.Mods.Fancy;
 public class CustomSkinsPlusStatic
 {
     [ConfigEntry(name: "资源目录")]
-    private static string skinsDir = "LocalAssets/GlobalTextureOverride";
+    private static string skinsDir = "LocalAssets/ResourcesOverride";
 
     private static readonly Dictionary<string, Sprite> SpritePool = new Dictionary<string, Sprite>();
     private static readonly Dictionary<string, Texture2D> TexturePool = new Dictionary<string, Texture2D>();
