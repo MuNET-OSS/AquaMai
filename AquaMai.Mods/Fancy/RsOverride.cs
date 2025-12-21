@@ -25,8 +25,7 @@ public class CustomSkinsPlusStatic
     public static void OnBeforePatch()
     {
         string resolvedPath = "";
-        try { resolvedPath = FileSystem.ResolvePath(skinsDir); }
-        catch { resolvedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, skinsDir); }
+        resolvedPath = FileSystem.ResolvePath(skinsDir);
 
         if (!Directory.Exists(resolvedPath)) {
             Directory.CreateDirectory(resolvedPath);
