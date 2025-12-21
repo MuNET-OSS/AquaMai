@@ -47,7 +47,7 @@ public class CustomSkinsPlusStatic
                     SpritePool[name] = sprite;
                     TexturePool[name] = tex;
                 }
-            } catch { }
+            } catch (Exception e) { MelonLogger.Error($"Failed to load custom skin '{Path.GetFileName(file)}': {e.Message}"); }
         }
     }
 
