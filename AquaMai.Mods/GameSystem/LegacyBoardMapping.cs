@@ -185,6 +185,7 @@ public class LegacyBoardMapping
             setLedGs8BitCommandArray[8].setColor(8, color);
             setLedGs8BitCommandArray[9].setColor(9, color);
             sendForceCommandMethod.Invoke(boardCtrl, new object[] { setLedGs8BitCommandArray[8] });
+            sendForceCommandMethod.Invoke(boardCtrl, new object[] { setLedGs8BitCommandArray[9] });
 
             // Set the _gsUpdate flag on Bd15070_4IF so PreExecute() sends the update command
             // This matches exactly how buttons work - they set _gsUpdate = true
