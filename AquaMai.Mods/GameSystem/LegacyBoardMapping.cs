@@ -74,7 +74,7 @@ public class LegacyBoardMapping
         // Check if MechaManager is initialized
         if (!IO.MechaManager.IsInitialized)
         {
-            MelonLoader.MelonLogger.Warning("[LegacyLedBoardMapping] MechaManager not initialized, cannot set woofer LED");
+            MelonLoader.MelonLogger.Warning("[LegacyBoardMapping] MechaManager not initialized, cannot set woofer LED");
             return;
         }
 
@@ -82,7 +82,7 @@ public class LegacyBoardMapping
         var ledIf = IO.MechaManager.LedIf;
         if (ledIf == null || playerIndex >= ledIf.Length || ledIf[playerIndex] == null)
         {
-            MelonLoader.MelonLogger.Warning($"[LegacyLedBoardMapping] LED interface not available for player {playerIndex}");
+            MelonLoader.MelonLogger.Warning($"[LegacyBoardMapping] LED interface not available for player {playerIndex}");
             return;
         }
 
@@ -95,14 +95,14 @@ public class LegacyBoardMapping
 
             if (controlField == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] _control field not found in Bd15070_4IF");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] _control field not found in Bd15070_4IF");
                 return;
             }
 
             var control = controlField.GetValue(ledIf[playerIndex]);
             if (control == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] Control object is null");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] Control object is null");
                 return;
             }
 
@@ -111,14 +111,14 @@ public class LegacyBoardMapping
             var boardField = controlType.GetField("_board", BindingFlags.NonPublic | BindingFlags.Instance);
             if (boardField == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] _board field not found in Bd15070_4Control");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] _board field not found in Bd15070_4Control");
                 return;
             }
 
             var board = boardField.GetValue(control);
             if (board == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] Board object is null");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] Board object is null");
                 return;
             }
 
@@ -127,14 +127,14 @@ public class LegacyBoardMapping
             var ctrlField = boardType.GetField("_ctrl", BindingFlags.NonPublic | BindingFlags.Instance);
             if (ctrlField == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] _ctrl field not found in Board15070_4");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] _ctrl field not found in Board15070_4");
                 return;
             }
 
             var boardCtrl = ctrlField.GetValue(board);
             if (boardCtrl == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] BoardCtrl object is null");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] BoardCtrl object is null");
                 return;
             }
 
@@ -143,14 +143,14 @@ public class LegacyBoardMapping
             var ioCtrlField = boardCtrlType.GetField("_ioCtrl", BindingFlags.NonPublic | BindingFlags.Instance);
             if (ioCtrlField == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] _ioCtrl field not found in BoardCtrl15070_4");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] _ioCtrl field not found in BoardCtrl15070_4");
                 return;
             }
 
             var ioCtrl = ioCtrlField.GetValue(boardCtrl);
             if (ioCtrl == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] IoCtrl object is null");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] IoCtrl object is null");
                 return;
             }
 
@@ -159,14 +159,14 @@ public class LegacyBoardMapping
             var setLedGs8BitCommandField = ioCtrlType.GetField("SetLedGs8BitCommand", BindingFlags.Public | BindingFlags.Instance);
             if (setLedGs8BitCommandField == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] SetLedGs8BitCommand field not found in IoCtrl");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] SetLedGs8BitCommand field not found in IoCtrl");
                 return;
             }
 
             var setLedGs8BitCommandArray = setLedGs8BitCommandField.GetValue(ioCtrl) as SetLedGs8BitCommand[];
             if (setLedGs8BitCommandArray == null || setLedGs8BitCommandArray.Length <= 8)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] SetLedGs8BitCommand array is null or too small");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] SetLedGs8BitCommand array is null or too small");
                 return;
             }
 
@@ -174,7 +174,7 @@ public class LegacyBoardMapping
             var sendForceCommandMethod = boardCtrlType.GetMethod("SendForceCommand", BindingFlags.Public | BindingFlags.Instance);
             if (sendForceCommandMethod == null)
             {
-                MelonLoader.MelonLogger.Error("[LegacyLedBoardMapping] SendForceCommand method not found in BoardCtrl15070_4");
+                MelonLoader.MelonLogger.Error("[LegacyBoardMapping] SendForceCommand method not found in BoardCtrl15070_4");
                 return;
             }
 
@@ -195,12 +195,12 @@ public class LegacyBoardMapping
             }
             else
             {
-                MelonLoader.MelonLogger.Warning("[LegacyLedBoardMapping] _gsUpdate field not found, LED may not update");
+                MelonLoader.MelonLogger.Warning("[LegacyBoardMapping] _gsUpdate field not found, LED may not update");
             }
         }
         catch (System.Exception ex)
         {
-            MelonLoader.MelonLogger.Error($"[LegacyLedBoardMapping] Failed to set woofer LED: {ex.Message}\n{ex.StackTrace}");
+            MelonLoader.MelonLogger.Error($"[LegacyBoardMapping] Failed to set woofer LED: {ex.Message}\n{ex.StackTrace}");
         }
     }
 }
