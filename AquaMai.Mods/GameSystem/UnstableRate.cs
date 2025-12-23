@@ -44,6 +44,7 @@ public class UnstableRate
         new() { windowStart = 6, windowEnd = 9, color = new Color(0.925f, 0.730f, 0.110f) },  // Good
     ];
     private static readonly Timing Miss = new() {windowStart = 999, windowEnd = 999, color = Color.grey };
+    private static readonly Material LineMaterial = new(Shader.Find("Sprites/Default"));
 
     private static GameMonitor _monitor;
 
@@ -139,7 +140,7 @@ public class UnstableRate
         // We can't add the line directly as a component of the monitor, because it can only
         // have one LineRenderer component at a time.
         var line = obj.AddComponent<LineRenderer>();
-        line.material = new Material(Shader.Find("Sprites/Default"));
+        line.material = LineMaterial;
         line.startWidth = LineThickness;
         line.endWidth = LineThickness;
         line.positionCount = 2;
