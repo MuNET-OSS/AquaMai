@@ -49,6 +49,12 @@ public class ConfigMigration_V2_3_V2_4 : IConfigMigration
             dst.Remove("GameSystem.AdxHidInput.Io4Compact");
         }
 
+        if (src.IsSectionEnabled("GameSystem.UnstableRate"))
+        {
+            dst.EnsureDictionary("Utils.UnstableRate");
+            dst.Remove("GameSystem.UnstableRate");
+        }
+
         return dst;
     }
 }
