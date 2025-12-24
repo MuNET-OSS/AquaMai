@@ -76,8 +76,16 @@ public class MaimollerIO
 
     public static void OnBeforePatch()
     {
-        if (p1) _devices[0].Open();
-        if (p2) _devices[1].Open();
+        if (p1)
+        {
+            _devices[0].Open();
+            TouchStatusProvider.RegisterTouchStatusProvider(0, GetTouchState);
+        }
+        if (p2)
+        {
+            _devices[1].Open();
+            TouchStatusProvider.RegisterTouchStatusProvider(1, GetTouchState);
+        }
         JvsSwitchHook.RegisterButtonChecker(IsButtonPushed);
         JvsSwitchHook.RegisterAuxiliaryStateProvider(GetAuxiliaryState);
     }
@@ -127,6 +135,17 @@ public class MaimollerIO
         return auxiliaryState;
     }
 
+    private static ulong GetTouchState(int i)
+    {
+        ulong s = 0;
+        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_A, MaimollerInputReport.ButtonMask.ANY_PLAYER);
+        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_B, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 8;
+        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_C, MaimollerInputReport.ButtonMask.ANY_TOUCH_C) << 16;
+        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_D, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 18;
+        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_E, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 26;
+        return s;
+    }
+
     [HarmonyPrefix]
     [HarmonyPatch(typeof(GameMain), "Update")]
     public static void PreGameMainUpdate(bool ____isInitialize)
@@ -137,33 +156,6 @@ public class MaimollerIO
             if (!ShouldEnableForPlayer(i)) continue;
             _devices[i].Update();
         }
-    }
-
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(NewTouchPanel), "Execute")]
-    public static bool PreNewTouchPanelExecute(uint ____monitorIndex, ref uint ____dataCounter)
-    {
-        int i = (int)____monitorIndex;
-        if (!ShouldEnableForPlayer(i)) return true;
-        ulong s = 0;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_A, MaimollerInputReport.ButtonMask.ANY_PLAYER);
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_B, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 8;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_C, MaimollerInputReport.ButtonMask.ANY_TOUCH_C) << 16;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_D, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 18;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_E, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 26;
-        InputManager.SetNewTouchPanel(____monitorIndex, s, ++____dataCounter);
-        return false;
-    }
-
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(NewTouchPanel), "Start")]
-    public static bool PreNewTouchPanelStart(uint ____monitorIndex, ref NewTouchPanel.StatusEnum ___Status, ref bool ____isRunning)
-    {
-        if (!ShouldEnableForPlayer((int)____monitorIndex)) return true;
-        ___Status = NewTouchPanel.StatusEnum.Drive;
-        ____isRunning = true;
-        MelonLogger.Msg($"[MaimollerIO] NewTouchPanel Start {____monitorIndex + 1}P");
-        return false;
     }
 
     [HarmonyPatch]
