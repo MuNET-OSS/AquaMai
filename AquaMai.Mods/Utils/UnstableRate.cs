@@ -11,7 +11,7 @@ namespace AquaMai.Mods.Utils;
 
 [ConfigSection(
     name: "稳定度指示器",
-    zh: "在屏幕中心显示每个击打的确切时间信息",
+    zh: "在屏幕中心显示每次判定的精确区间",
     en: "Show information about the exact timing for each hit during gameplay in the center of the screen.")]
 public class UnstableRate
 {

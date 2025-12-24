@@ -57,10 +57,12 @@ try {
 # 3. Build
 # ==========================================
 Write-Host "Building Solution..." -ForegroundColor Cyan
+
 $Configuration = "Release"
-if ($args.Count -gt 0 -and $args[0] -eq "-Configuration") {
-    $Configuration = $args[1]
+if ($args.Count -gt 0) {
+    $Configuration = $args[0].ToLower()
 }
 
+Write-Host "Configuration: $Configuration" -ForegroundColor Yellow
 dotnet build "./AquaMai.slnx" -c $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
