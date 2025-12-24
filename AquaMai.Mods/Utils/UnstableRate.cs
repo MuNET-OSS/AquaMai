@@ -59,10 +59,10 @@ public class UnstableRate
 
     private static readonly Timing[] Timings =
     [
-        new() { windowStart = 0, windowEnd = 1, color = new Color(0.133f, 0.712f, 0.851f) }, // Critical
-        new() { windowStart = 1, windowEnd = 3, color = new Color(0.122f, 0.484f, 0.861f) }, // Perfect
-        new() { windowStart = 3, windowEnd = 6, color = new Color(0.102f, 0.731f, 0.078f) },  // Great
-        new() { windowStart = 6, windowEnd = 9, color = new Color(0.925f, 0.730f, 0.110f) },  // Good
+        new() { windowStart = 0, windowEnd = 1, color = new Color(1.000f, 0.843f, 0.000f) }, // Critical (#ffd700)
+        new() { windowStart = 1, windowEnd = 3, color = new Color(1.000f, 0.647f, 0.000f) }, // Perfect (#ffa500)
+        new() { windowStart = 3, windowEnd = 6, color = new Color(1.000f, 0.078f, 0.576f) },  // Great (#ff1493)
+        new() { windowStart = 6, windowEnd = 9, color = new Color(0.000f, 0.502f, 0.000f) },  // Good (#008000)
     ];
     private static readonly Timing Miss = new() { windowStart = 999, windowEnd = 999, color = Color.grey };
     private static readonly Material LineMaterial = new(Shader.Find("Sprites/Default"));
@@ -78,6 +78,8 @@ public class UnstableRate
         for (int i = 0; i < 2; i++)
         {
             if (displayType[i] == 0) continue;
+            var userData = UserDataManager.Instance.GetUserData(i);
+            if (!userData.IsEntry) continue;
             var main = ____monitors[i].gameObject.transform.Find("Canvas/Main");
             var go = new GameObject("[AquaMai] UnstableRate");
             go.transform.SetParent(main, false);
@@ -112,7 +114,7 @@ public class UnstableRate
         {
             return;
         }
-        
+
         var line = pool.Get();
 
         line.SetPosition(0, new Vector3(BaselineCenter + BaselineHScale * (msec / TimingBin), BaselineHeight + JudgeHeight, 0));
@@ -215,7 +217,7 @@ public class UnstableRate
         public LinePool(GameObject parent)
         {
             _parent = parent;
-            
+
             // 预创建对象
             for (int i = 0; i < InitialPoolSize; i++)
             {
@@ -237,7 +239,7 @@ public class UnstableRate
             {
                 line = CreateLine(_parent);
             }
-            
+
             return line;
         }
 
@@ -278,7 +280,7 @@ public class UnstableRate
                 return;
 
             var fadeProgress = (_elapsedTime - JudgeFadeDelay) / JudgeFadeTime;
-            
+
             if (fadeProgress >= 1.0f)
             {
                 _pool.Return(_line);
