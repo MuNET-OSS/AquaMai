@@ -10,7 +10,7 @@ using System.Threading;
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
 [ConfigCollapseNamespace]
-[ConfigSection]
+[ConfigSection(exampleHidden: true)]
 public class ExclusiveTouch
 {
     [ConfigEntry]
