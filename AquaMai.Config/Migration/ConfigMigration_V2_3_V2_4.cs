@@ -43,6 +43,12 @@ public class ConfigMigration_V2_3_V2_4 : IConfigMigration
             dst.Remove("GameSystem.MaimollerIO.P2");
         }
 
+        if (src.TryGetValue<bool>("GameSystem.AdxHidInput.Io4Compact", out var adxDisableButtons))
+        {
+            dst.SetValue("GameSystem.AdxHidInput.DisableButtons", adxDisableButtons);
+            dst.Remove("GameSystem.AdxHidInput.Io4Compact");
+        }
+
         return dst;
     }
 }

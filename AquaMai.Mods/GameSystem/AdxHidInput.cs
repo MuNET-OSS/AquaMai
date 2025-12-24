@@ -117,7 +117,7 @@ public class AdxHidInput
             if (adxController[i] == null) continue;
             TdInit(i);
             if (adxController[i].Attributes.ProductId is 0x5767 or 0x5768) continue;
-            if (io4Compact) continue;
+            if (disableButtons) continue;
             keyEnabled = true;
             var p = i;
             Thread hidThread = new Thread(() => HidInputThread(p));
@@ -168,8 +168,8 @@ public class AdxHidInput
     [ConfigEntry(name: "按钮 4（最下方的圆形按键）")]
     private static readonly IOKeyMap button4 = IOKeyMap.Test;
 
-    [ConfigEntry("IO4 兼容模式", zh: "如果你不知道这是什么，请勿开启", hideWhenDefault: true)]
-    private static readonly bool io4Compact = false;
+    [ConfigEntry("禁用外键输入")]
+    private static readonly bool disableButtons = false;
 
     private static AuxiliaryState GetAuxiliaryState()
     {
