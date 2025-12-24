@@ -26,7 +26,7 @@ public class ConfigSerializer(IConfigSerializer.Options Options) : IConfigSerial
         - 该文件的格式和文字注释是固定的，配置文件将在启动时被重写，无法解析的内容将被删除
 
         试试使用 MaiChartManager 图形化配置 AquaMai 吧！
-        https://github.com/clansty/MaiChartManager
+        https://github.com/MuNET-OSS/MaiChartManager
         """;
 
     private const string BANNER_EN =
@@ -43,6 +43,9 @@ public class ConfigSerializer(IConfigSerializer.Options Options) : IConfigSerial
             - Configuration entries take effect when the corresponding section is enabled, regardless of whether they are uncommented.
             - Commented configuration entries retain their default values (shown in the comment), which may change with version updates.
         - The format and text comments of this file are fixed. The configuration file will be rewritten at startup, and unrecognizable content will be deleted.
+
+        Try using MaiChartManager to configure AquaMai graphically!
+        https://github.com/MuNET-OSS/MaiChartManager
         """;
 
     private readonly IConfigSerializer.Options Options = Options;
