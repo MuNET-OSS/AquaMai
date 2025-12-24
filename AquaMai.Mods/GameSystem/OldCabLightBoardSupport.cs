@@ -13,7 +13,7 @@ namespace AquaMai.Mods.GameSystem;
     name: "旧框灯板支持",
     en: "Skip BoardNo check to use the old cab light board 837-15070-02, and remapping the Billboard LED to woofer LED, roof LED and center LED",
     zh: "跳过 BoardNo 检查以使用 837-15070-02（旧框灯板），并映射新框顶板 LED 至重低音扬声器 LED、顶板 LED 以及中央 LED")]
-public class SkipBoardNoCheck
+public class OldCabLightBoardSupport
 {
     private static readonly FieldInfo _controlField;
     private static readonly FieldInfo _boardField;
@@ -85,7 +85,7 @@ public class SkipBoardNoCheck
         }
     }
 
-    static SkipBoardNoCheck()
+    static OldCabLightBoardSupport()
     {
         var ledIfType = typeof(Bd15070_4IF);
         _controlField = ledIfType.GetField("_control", BindingFlags.NonPublic | BindingFlags.Instance);

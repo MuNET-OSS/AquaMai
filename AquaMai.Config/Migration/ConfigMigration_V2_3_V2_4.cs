@@ -21,6 +21,12 @@ public class ConfigMigration_V2_3_V2_4 : IConfigMigration
             dst.Remove("GameSystem.KeyMap.DisableIO4");
         }
 
+        if (src.IsSectionEnabled("GameSystem.SkipBoardNoCheck"))
+        {
+            dst.EnsureDictionary("GameSystem.OldCabLightBoardSupport");
+            dst.Remove("GameSystem.SkipBoardNoCheck");
+        }
+
         return dst;
     }
 }
