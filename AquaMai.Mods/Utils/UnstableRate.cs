@@ -15,8 +15,9 @@ namespace AquaMai.Mods.Utils;
 public class UnstableRate
 {
     // The playfield goes from bottom left (-1080, -960) to top right (0, 120)
-    private const float BaselineHeight = -480;
-    private const float BaselineCenter = -540;
+    // 由于使用了 local space，所以高度和中心都是 0
+    private const float BaselineHeight = 0;
+    private const float BaselineCenter = 0;
     private const float BaselineHScale = 25;
     private const float CenterMarkerHeight = 20;
 
@@ -28,6 +29,24 @@ public class UnstableRate
     private const float LineThickness = 4;
 
     private const float TimingBin = 16.666666f;
+
+    [ConfigEntry("默认显示")]
+    public static bool defaultOn = false;
+
+    // 0: 不显示，1: 显示，剩下来留给以后
+    public static int[] displayType = [1, 1];
+
+    public static void OnBeforePatch()
+    {
+        if (defaultOn)
+        {
+            displayType = [1, 1];
+        }
+        else
+        {
+            displayType = [0, 0];
+        }
+    }
 
     private struct Timing
     {
@@ -44,30 +63,38 @@ public class UnstableRate
         new() { windowStart = 3, windowEnd = 6, color = new Color(0.102f, 0.731f, 0.078f) },  // Great
         new() { windowStart = 6, windowEnd = 9, color = new Color(0.925f, 0.730f, 0.110f) },  // Good
     ];
-    private static readonly Timing Miss = new() {windowStart = 999, windowEnd = 999, color = Color.grey };
+    private static readonly Timing Miss = new() { windowStart = 999, windowEnd = 999, color = Color.grey };
     private static readonly Material LineMaterial = new(Shader.Find("Sprites/Default"));
 
-    private static GameMonitor _monitor;
+    private static GameObject[] baseObjects = new GameObject[2];
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameProcess), "OnStart")]
-    public static void OnGameProcessStart(GameProcess __instance)
+    public static void OnGameProcessStart(GameProcess __instance, GameMonitor[] ____monitors)
     {
-        _monitor = Traverse.Create(__instance).Field("_monitors").GetValue<GameMonitor[]>()[0];
-
         // Set up the baseline (the static part of the display)
-        SetupBaseline();
+        for (int i = 0; i < 2; i++)
+        {
+            if (displayType[i] == 0) continue;
+            var main = ____monitors[i].gameObject.transform.Find("Canvas/Main");
+            var go = new GameObject("[AquaMai] UnstableRate");
+            go.transform.SetParent(main, false);
+            baseObjects[i] = go;
+            SetupBaseline(go);
+        }
     }
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(NoteBase), "Judge")]
-    public static void OnJudge(NoteBase __instance)
+    public static void OnJudge(NoteBase __instance, float ___JudgeTimingDiffMsec)
     {
+        if (displayType[__instance.MonitorId] == 0) return;
+
         // How many milliseconds early or late the player hit
-        var msec = Traverse.Create(__instance).Field("JudgeTimingDiffMsec").GetValue<float>();
+        var msec = ___JudgeTimingDiffMsec;
 
         // Account for the offset
-        var optionJudgeTiming = Singleton<GamePlayManager>.Instance.GetGameScore(0).UserOption.GetJudgeTimingFrame();
+        var optionJudgeTiming = Singleton<GamePlayManager>.Instance.GetGameScore(__instance.MonitorId).UserOption.GetJudgeTimingFrame();
         msec -= optionJudgeTiming * TimingBin;
 
         // Don't process misses
@@ -77,8 +104,13 @@ public class UnstableRate
             return;
         }
 
+        var go = baseObjects[__instance.MonitorId];
+        if (go == null)
+        {
+            return;
+        }
         // Create judgement tick
-        var line = CreateLine();
+        var line = CreateLine(go);
 
         line.SetPosition(0, new Vector3(BaselineCenter + BaselineHScale * (msec / TimingBin), BaselineHeight + JudgeHeight, 0));
         line.SetPosition(1, new Vector3(BaselineCenter + BaselineHScale * (msec / TimingBin), BaselineHeight - JudgeHeight, 0));
@@ -96,13 +128,13 @@ public class UnstableRate
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(HoldNote), "JudgeHoldHead")]
-    public static void OnJudgeHold(HoldNote __instance)
+    public static void OnJudgeHold(HoldNote __instance, float ___JudgeTimingDiffMsec)
     {
         // The calculations are the same for the hold note heads
-        OnJudge(__instance);
+        OnJudge(__instance, ___JudgeTimingDiffMsec);
     }
 
-    private static void SetupBaseline()
+    private static void SetupBaseline(GameObject go)
     {
         LineRenderer line;
 
@@ -112,7 +144,7 @@ public class UnstableRate
             // Draw each timing window in a different color
             foreach (var timing in Timings)
             {
-                line = CreateLine();
+                line = CreateLine(go, flatCaps: true);
 
                 line.SetPosition(0, new Vector3(BaselineCenter + sign * BaselineHScale * timing.windowStart, BaselineHeight, 0));
                 line.SetPosition(1, new Vector3(BaselineCenter + sign * BaselineHScale * timing.windowEnd, BaselineHeight, 0));
@@ -123,7 +155,7 @@ public class UnstableRate
         }
 
         // Center marker
-        line = CreateLine();
+        line = CreateLine(go);
 
         // Setting z-coordinate to -1 to make sure it stays in the foreground
         line.SetPosition(0, new Vector3(BaselineCenter, BaselineHeight + CenterMarkerHeight, -1));
@@ -133,19 +165,20 @@ public class UnstableRate
         line.endColor = Color.white;
     }
 
-    private static LineRenderer CreateLine()
+    private static LineRenderer CreateLine(GameObject go, bool flatCaps = false)
     {
         var obj = new GameObject();
-        obj.transform.SetParent(_monitor.transform);
+        obj.transform.SetParent(go.transform, false);
 
         // We can't add the line directly as a component of the monitor, because it can only
         // have one LineRenderer component at a time.
         var line = obj.AddComponent<LineRenderer>();
         line.material = LineMaterial;
+        line.useWorldSpace = false;
         line.startWidth = LineThickness;
         line.endWidth = LineThickness;
         line.positionCount = 2;
-        line.numCapVertices = 6; // Make the ends round
+        line.numCapVertices = flatCaps ? 0 : 6;
 
         return line;
     }
