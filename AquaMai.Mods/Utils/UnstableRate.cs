@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AquaMai.Config.Attributes;
 using HarmonyLib;
 using MAI2.Util;
@@ -15,8 +16,8 @@ namespace AquaMai.Mods.Utils;
 public class UnstableRate
 {
     // The playfield goes from bottom left (-1080, -960) to top right (0, 120)
-    // 由于使用了 local space，所以高度和中心都是 0
-    private const float BaselineHeight = 0;
+    // 使用了 local space
+    private const float BaselineHeight = -70;
     private const float BaselineCenter = 0;
     private const float BaselineHScale = 25;
     private const float CenterMarkerHeight = 20;
@@ -67,6 +68,7 @@ public class UnstableRate
     private static readonly Material LineMaterial = new(Shader.Find("Sprites/Default"));
 
     private static GameObject[] baseObjects = new GameObject[2];
+    private static LinePool[] linePools = new LinePool[2];
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameProcess), "OnStart")]
@@ -80,6 +82,7 @@ public class UnstableRate
             var go = new GameObject("[AquaMai] UnstableRate");
             go.transform.SetParent(main, false);
             baseObjects[i] = go;
+            linePools[i] = new LinePool(go);
             SetupBaseline(go);
         }
     }
@@ -104,13 +107,13 @@ public class UnstableRate
             return;
         }
 
-        var go = baseObjects[__instance.MonitorId];
-        if (go == null)
+        var pool = linePools[__instance.MonitorId];
+        if (pool == null)
         {
             return;
         }
-        // Create judgement tick
-        var line = CreateLine(go);
+        
+        var line = pool.Get();
 
         line.SetPosition(0, new Vector3(BaselineCenter + BaselineHScale * (msec / TimingBin), BaselineHeight + JudgeHeight, 0));
         line.SetPosition(1, new Vector3(BaselineCenter + BaselineHScale * (msec / TimingBin), BaselineHeight - JudgeHeight, 0));
@@ -119,11 +122,12 @@ public class UnstableRate
         line.endColor = timing.color;
 
         // Setup fade-out
-        var judgeTick = line.gameObject.AddComponent<JudgeTick>();
-        judgeTick.SetLine(line);
-
-        // Destroy it once the fade-out is over
-        Object.Destroy(line.gameObject, JudgeFadeDelay + JudgeFadeTime);
+        var judgeTick = line.gameObject.GetComponent<JudgeTick>();
+        if (judgeTick == null)
+        {
+            judgeTick = line.gameObject.AddComponent<JudgeTick>();
+        }
+        judgeTick.SetLine(line, pool);
     }
 
     [HarmonyPostfix]
@@ -202,19 +206,63 @@ public class UnstableRate
         return Miss;
     }
 
-    // Handles the fade-out of judgment ticks
+    private class LinePool
+    {
+        private readonly Queue<LineRenderer> _pool = new();
+        private readonly GameObject _parent;
+        private const int InitialPoolSize = 128;
+
+        public LinePool(GameObject parent)
+        {
+            _parent = parent;
+            
+            // 预创建对象
+            for (int i = 0; i < InitialPoolSize; i++)
+            {
+                var line = CreateLine(_parent);
+                line.gameObject.SetActive(false);
+                _pool.Enqueue(line);
+            }
+        }
+
+        public LineRenderer Get()
+        {
+            LineRenderer line;
+            if (_pool.Count > 0)
+            {
+                line = _pool.Dequeue();
+                line.gameObject.SetActive(true);
+            }
+            else
+            {
+                line = CreateLine(_parent);
+            }
+            
+            return line;
+        }
+
+        public void Return(LineRenderer line)
+        {
+            line.gameObject.SetActive(false);
+            _pool.Enqueue(line);
+        }
+    }
+
+    // 动画
     private class JudgeTick : MonoBehaviour
     {
         private float _elapsedTime;
         private LineRenderer _line;
+        private LinePool _pool;
         private Color _initialColor;
 
-        public void SetLine(LineRenderer line)
+        public void SetLine(LineRenderer line, LinePool pool)
         {
             _line = line;
+            _pool = pool;
             _initialColor = line.startColor;
+            _elapsedTime = 0;
 
-            // We needed to store the full color above, so we didn't apply the alpha before
             var color = _initialColor;
             color.a *= JudgeAlpha;
 
@@ -226,13 +274,19 @@ public class UnstableRate
         {
             _elapsedTime += Time.deltaTime;
 
-            // Only start the fade-out after a short delay
             if (_elapsedTime < JudgeFadeDelay)
                 return;
 
-            Color color = _initialColor;
+            var fadeProgress = (_elapsedTime - JudgeFadeDelay) / JudgeFadeTime;
+            
+            if (fadeProgress >= 1.0f)
+            {
+                _pool.Return(_line);
+                return;
+            }
 
-            color.a = JudgeAlpha * (1.0f - Mathf.Clamp01((_elapsedTime - JudgeFadeDelay) / JudgeFadeTime));
+            Color color = _initialColor;
+            color.a = JudgeAlpha * (1.0f - fadeProgress);
 
             _line.startColor = color;
             _line.endColor = color;
