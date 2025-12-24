@@ -27,6 +27,22 @@ public class ConfigMigration_V2_3_V2_4 : IConfigMigration
             dst.Remove("GameSystem.SkipBoardNoCheck");
         }
 
+        if (src.TryGetValue<bool>("GameSystem.MaimollerIO.P1", out var mml1p))
+        {
+            dst.SetValue("GameSystem.MaimollerIO.Touch1p", mml1p);
+            dst.SetValue("GameSystem.MaimollerIO.Button1p", mml1p);
+            dst.SetValue("GameSystem.MaimollerIO.Led1p", mml1p);
+            dst.Remove("GameSystem.MaimollerIO.P1");
+        }
+
+        if (src.TryGetValue<bool>("GameSystem.MaimollerIO.P2", out var mml2p))
+        {
+            dst.SetValue("GameSystem.MaimollerIO.Touch2p", mml2p);
+            dst.SetValue("GameSystem.MaimollerIO.Button2p", mml2p);
+            dst.SetValue("GameSystem.MaimollerIO.Led2p", mml2p);
+            dst.Remove("GameSystem.MaimollerIO.P2");
+        }
+
         return dst;
     }
 }
