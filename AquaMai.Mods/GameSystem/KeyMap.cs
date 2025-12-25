@@ -73,7 +73,7 @@ public class KeyMap
     public static readonly bool disableDebugFeatureHotkeys = false; // Implemented in DebugFeature
 
     private static bool DisableIO4 => disableIO4_1P || disableIO4_2P || disableIO4System;
-    private static List<SwitchInput> disabledSwitchInputs = [];
+    private static HashSet<SwitchInput> disabledSwitchInputs = [];
 
     [EnableIf(nameof(DisableIO4))]
     [HarmonyPatch("IO.Jvs+JvsSwitch", ".ctor", MethodType.Constructor, [typeof(int), typeof(string), typeof(KeyCode), typeof(bool), typeof(bool)])]

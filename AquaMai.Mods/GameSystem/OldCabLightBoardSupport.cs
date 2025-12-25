@@ -42,13 +42,13 @@ public class OldCabLightBoardSupport
                     codes.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_I4_1));
 
                     patched = true;
-                    MelonLoader.MelonLogger.Msg("[SkipBoardNoCheck] 修补 BoardCtrl15070_4._md_initBoard_GetBoardInfo 方法成功");
+                    MelonLoader.MelonLogger.Msg("[OldCabLightBoardSupport] 修补 BoardCtrl15070_4._md_initBoard_GetBoardInfo 方法成功");
                     break;
                 }
             }
             if (!patched)
             {
-                MelonLoader.MelonLogger.Warning("[SkipBoardNoCheck] 未找到需要修补的代码位置：BoardCtrl15070_4._md_initBoard_GetBoardInfo");
+                MelonLoader.MelonLogger.Warning("[OldCabLightBoardSupport] 未找到需要修补的代码位置：BoardCtrl15070_4._md_initBoard_GetBoardInfo");
             }
             return codes;
         }
@@ -73,13 +73,13 @@ public class OldCabLightBoardSupport
                     codes.Insert(i + 2, new CodeInstruction(OpCodes.Ldc_I4_1));
 
                     patched = true;
-                    MelonLoader.MelonLogger.Msg("[SkipBoardNoCheck] 修补 Bd15070_4Control.IsNeedFirmUpdate 方法成功");
+                    MelonLoader.MelonLogger.Msg("[OldCabLightBoardSupport] 修补 Bd15070_4Control.IsNeedFirmUpdate 方法成功");
                     break;
                 }
             }
             if (!patched)
             {
-                MelonLoader.MelonLogger.Warning("[SkipBoardNoCheck] 未找到需要修补的代码位置：Bd15070_4Control.IsNeedFirmUpdate");
+                MelonLoader.MelonLogger.Warning("[OldCabLightBoardSupport] 未找到需要修补的代码位置：Bd15070_4Control.IsNeedFirmUpdate");
             }
             return codes;
         }
@@ -106,15 +106,15 @@ public class OldCabLightBoardSupport
 
         if (_controlField == null)
         {
-            MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] Failed to cache _control field");
+            MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] Failed to cache _control field");
         }
         if (_setLedGs8BitCommandField == null)
         {
-            MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] Failed to cache SetLedGs8BitCommand field");
+            MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] Failed to cache SetLedGs8BitCommand field");
         }
         if (_sendForceCommandMethod == null)
         {
-            MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] Failed to cache SendForceCommand method");
+            MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] Failed to cache SendForceCommand method");
         }
     }
 
@@ -138,11 +138,11 @@ public class OldCabLightBoardSupport
             }
             if (patchedNum == 2)
             {
-                MelonLoader.MelonLogger.Msg("[SkipBoardNoCheck] Extended Bd15070_4IF._switchParam size and its initialize for loop from 8 to 10!");
+                MelonLoader.MelonLogger.Msg("[OldCabLightBoardSupport] Extended Bd15070_4IF._switchParam size and its initialize for loop from 8 to 10!");
             }
             else
             {
-                MelonLoader.MelonLogger.Warning($"[SkipBoardNoCheck] Bd15070_4IF._switchParam patching failed (patched {patchedNum}/2)");
+                MelonLoader.MelonLogger.Warning($"[OldCabLightBoardSupport] Bd15070_4IF._switchParam patching failed (patched {patchedNum}/2)");
             }
             return codes;
         }
@@ -157,7 +157,7 @@ public class OldCabLightBoardSupport
             var type = typeof(IO.Jvs).GetNestedType("JvsOutputPwm", BindingFlags.NonPublic | BindingFlags.Instance);
             if (type == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] JvsOutputPwm type not found");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] JvsOutputPwm type not found");
                 return null;
             }
             return type.GetMethod("Set", new[] { typeof(byte), typeof(Color32), typeof(bool) });
@@ -177,7 +177,7 @@ public class OldCabLightBoardSupport
         // Check if MechaManager is initialized
         if (!IO.MechaManager.IsInitialized)
         {
-            MelonLoader.MelonLogger.Warning("[SkipBoardNoCheck] MechaManager not initialized, cannot set woofer LED");
+            MelonLoader.MelonLogger.Warning("[OldCabLightBoardSupport] MechaManager not initialized, cannot set woofer LED");
             return;
         }
 
@@ -185,7 +185,7 @@ public class OldCabLightBoardSupport
         var ledIf = IO.MechaManager.LedIf;
         if (ledIf == null || playerIndex >= ledIf.Length || ledIf[playerIndex] == null)
         {
-            MelonLoader.MelonLogger.Warning($"[SkipBoardNoCheck] LED interface not available for player {playerIndex}");
+            MelonLoader.MelonLogger.Warning($"[OldCabLightBoardSupport] LED interface not available for player {playerIndex}");
             return;
         }
 
@@ -195,72 +195,72 @@ public class OldCabLightBoardSupport
         {
             if (_controlField == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] _control field not found in Bd15070_4IF");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] _control field not found in Bd15070_4IF");
                 return;
             }
 
             var control = _controlField.GetValue(ledIf[playerIndex]);
             if (control == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] Control object is null");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] Control object is null");
                 return;
             }
 
             if (_boardField == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] _board field not found in Bd15070_4Control");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] _board field not found in Bd15070_4Control");
                 return;
             }
 
             var board = _boardField.GetValue(control);
             if (board == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] Board object is null");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] Board object is null");
                 return;
             }
 
             if (_ctrlField == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] _ctrl field not found in Board15070_4");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] _ctrl field not found in Board15070_4");
                 return;
             }
 
             var boardCtrl = _ctrlField.GetValue(board);
             if (boardCtrl == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] BoardCtrl object is null");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] BoardCtrl object is null");
                 return;
             }
 
             if (_ioCtrlField == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] _ioCtrl field not found in BoardCtrl15070_4");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] _ioCtrl field not found in BoardCtrl15070_4");
                 return;
             }
 
             var ioCtrl = _ioCtrlField.GetValue(boardCtrl);
             if (ioCtrl == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] IoCtrl object is null");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] IoCtrl object is null");
                 return;
             }
 
             if (_setLedGs8BitCommandField == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] SetLedGs8BitCommand field not found in IoCtrl");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] SetLedGs8BitCommand field not found in IoCtrl");
                 return;
             }
 
             var setLedGs8BitCommandArray = _setLedGs8BitCommandField.GetValue(ioCtrl) as SetLedGs8BitCommand[];
-            if (setLedGs8BitCommandArray == null || setLedGs8BitCommandArray.Length <= 8)
+            if (setLedGs8BitCommandArray == null || setLedGs8BitCommandArray.Length <= 9)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] SetLedGs8BitCommand array is null or too small");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] SetLedGs8BitCommand array is null or too small");
                 return;
             }
 
             if (_sendForceCommandMethod == null)
             {
-                MelonLoader.MelonLogger.Error("[SkipBoardNoCheck] SendForceCommand method not found in BoardCtrl15070_4");
+                MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] SendForceCommand method not found in BoardCtrl15070_4");
                 return;
             }
 
@@ -279,12 +279,12 @@ public class OldCabLightBoardSupport
             }
             else
             {
-                MelonLoader.MelonLogger.Warning("[SkipBoardNoCheck] _gsUpdate field not found, LED may not update");
+                MelonLoader.MelonLogger.Warning("[OldCabLightBoardSupport] _gsUpdate field not found, LED may not update");
             }
         }
         catch (System.Exception ex)
         {
-            MelonLoader.MelonLogger.Error($"[SkipBoardNoCheck] Failed to set woofer LED: {ex.Message}\n{ex.StackTrace}");
+            MelonLoader.MelonLogger.Error($"[OldCabLightBoardSupport] Failed to set woofer LED: {ex.Message}\n{ex.StackTrace}");
         }
     }
 }

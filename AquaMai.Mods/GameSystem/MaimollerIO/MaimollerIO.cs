@@ -201,7 +201,6 @@ public class MaimollerIO
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(GameMain), "Update")]
-    [EnableIf(nameof(IsAnyLedEnabled))]
     public static void PreGameMainUpdate(bool ____isInitialize)
     {
         if (!____isInitialize) return;
