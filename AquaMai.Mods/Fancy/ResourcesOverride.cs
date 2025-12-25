@@ -14,7 +14,7 @@ namespace AquaMai.Mods.Fancy;
     name: "力大砖飞",
     en: "[Dangerous] Full-scene texture / sprite replacement. Static injection.",
     zh: "【危险功能】适用于便捷魔改的自定义全场景图片。警告：可能对游戏造成未知性能影响，可能与其他模组冲突？")]
-public class CustomSkinsPlusStatic
+public class ResourcesOverride
 {
     [ConfigEntry(name: "资源目录")]
     private static string skinsDir = "LocalAssets/ResourcesOverride";

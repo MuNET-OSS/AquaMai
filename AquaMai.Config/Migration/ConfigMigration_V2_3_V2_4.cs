@@ -55,6 +55,18 @@ public class ConfigMigration_V2_3_V2_4 : IConfigMigration
             dst.Remove("GameSystem.UnstableRate");
         }
 
+        if (src.IsSectionEnabled("Fancy.CustomSkinsPlusStatic"))
+        {
+            dst.EnsureDictionary("Fancy.ResourcesOverride");
+            dst.Remove("Fancy.CustomSkinsPlusStatic");
+        }
+
+        if (src.IsSectionEnabled("Fancy.RsOverride"))
+        {
+            dst.EnsureDictionary("Fancy.ResourcesOverride");
+            dst.Remove("Fancy.RsOverride");
+        }
+
         return dst;
     }
 }
