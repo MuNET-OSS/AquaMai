@@ -31,23 +31,8 @@ public class UnstableRate
 
     private const float TimingBin = 16.666666f;
 
-    [ConfigEntry("默认显示")]
-    public static bool defaultOn = false;
-
     // 0: 不显示，1: 显示，剩下来留给以后
     public static int[] displayType = [1, 1];
-
-    public static void OnBeforePatch()
-    {
-        if (defaultOn)
-        {
-            displayType = [1, 1];
-        }
-        else
-        {
-            displayType = [0, 0];
-        }
-    }
 
     private struct Timing
     {

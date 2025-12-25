@@ -12,12 +12,12 @@
   - Utils.MoveAnswerSound
 
 新功能！:
+  - Utils.UnstableRate
+  - Utils.DisplayTouchInGame
+  - Fancy.ResourcesOverride
+  - GameSystem.OldCabLightBoardSupport
+  - Utils.InstantQuit
   - GameSystem.MaimollerIO
-  - Tweaks.LedBrightnessControl
-  - Fancy.TrackCamouflage
-  - GameSystem.SoundRouting
-  - GameSystem.HeadphoneVolumeMultiply
-  - Utils.LedOffOnQuit
 
 全解和跳过:
   - GameSystem.Unlock
