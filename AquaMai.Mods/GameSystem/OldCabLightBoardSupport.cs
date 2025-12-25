@@ -154,7 +154,7 @@ public class OldCabLightBoardSupport
         [HarmonyTargetMethod]
         static MethodBase TargetMethod()
         {
-            var type = typeof(IO.Jvs).GetNestedType("JvsOutputPwm", BindingFlags.NonPublic | BindingFlags.Instance);
+            var type = typeof(IO.Jvs).GetNestedType("JvsOutputPwm", BindingFlags.NonPublic | BindingFlags.Public);
             if (type == null)
             {
                 MelonLoader.MelonLogger.Error("[OldCabLightBoardSupport] JvsOutputPwm type not found");

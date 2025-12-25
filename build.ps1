@@ -57,10 +57,9 @@ try {
 # 3. Build
 # ==========================================
 Write-Host "Building Solution..." -ForegroundColor Cyan
-
 $Configuration = "Release"
-if ($args.Count -gt 0) {
-    $Configuration = $args[0].ToLower()
+if ($args.Count -gt 0 -and $args[0] -eq "-Configuration") {
+    $Configuration = $args[1]
 }
 
 Write-Host "Configuration: $Configuration" -ForegroundColor Yellow
