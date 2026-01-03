@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using AquaMai.Config.Attributes;
 using HarmonyLib;
 using MAI2.Util;
@@ -6,6 +7,7 @@ using Manager;
 using Monitor;
 using Process;
 using UnityEngine;
+using AquaMai.Mods.GameSettings;
 
 namespace AquaMai.Mods.Utils;
 
@@ -54,6 +56,24 @@ public class UnstableRate
 
     private static GameObject[] baseObjects = new GameObject[2];
     private static LinePool[] linePools = new LinePool[2];
+    private static FieldInfo _judgeAdjustBField;
+    private static bool _fieldChecked = false;
+
+     private static double GetJudgeAdjustB()
+    {
+        if (!_fieldChecked)
+        {
+            // 尝试通过反射获取 AquaMai.Mods.GameSettings.JudgeAdjust 类中的私有字段 'b'
+            _judgeAdjustBField = AccessTools.Field(typeof(JudgeAdjust), "b");
+            _fieldChecked = true;
+        }
+
+        if (_judgeAdjustBField != null)
+        {
+            return (double)_judgeAdjustBField.GetValue(null);
+        }
+        return 0;
+    }
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameProcess), "OnStart")]
@@ -86,6 +106,10 @@ public class UnstableRate
         // Account for the offset
         var optionJudgeTiming = Singleton<GamePlayManager>.Instance.GetGameScore(__instance.MonitorId).UserOption.GetJudgeTimingFrame();
         msec -= optionJudgeTiming * TimingBin;
+
+        // Account for the mod adjustment B judgement offset
+        double modAdjustB = GetJudgeAdjustB();
+        msec += (float)(modAdjustB * TimingBin);
 
         // Don't process misses
         var timing = GetTiming(msec);
