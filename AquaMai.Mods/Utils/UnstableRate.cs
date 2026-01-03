@@ -56,18 +56,16 @@ public class UnstableRate
 
     private static GameObject[] baseObjects = new GameObject[2];
     private static LinePool[] linePools = new LinePool[2];
-    private static FieldInfo _judgeAdjustBField;
-    private static bool _fieldChecked = false;
+        private static readonly FieldInfo _judgeAdjustBField;
 
-     private static double GetJudgeAdjustB()
+    static UnstableRate()
     {
-        if (!_fieldChecked)
-        {
-            // 尝试通过反射获取 AquaMai.Mods.GameSettings.JudgeAdjust 类中的私有字段 'b'
-            _judgeAdjustBField = AccessTools.Field(typeof(JudgeAdjust), "b");
-            _fieldChecked = true;
-        }
+        // 尝试通过反射获取 AquaMai.Mods.GameSettings.JudgeAdjust 类中的私有字段 'b'
+        _judgeAdjustBField = AccessTools.Field(typeof(JudgeAdjust), "b");
+    }
 
+    private static double GetJudgeAdjustB()
+    {
         if (_judgeAdjustBField != null)
         {
             return (double)_judgeAdjustBField.GetValue(null);
