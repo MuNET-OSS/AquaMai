@@ -176,10 +176,10 @@ public class SetFade
 
             // 根据你的要求修正动画映射
             string animName = cfg.FadeType switch { 
-                1 => "Out", 
+                1 => "In", 
                 2 => "Out_02", 
                 3 => "Out_03", 
-                _ => "Out" 
+                _ => "In" 
             };
 
             if (main != null)
