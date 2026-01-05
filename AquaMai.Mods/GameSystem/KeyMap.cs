@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using AMDaemon;
 using AquaMai.Config.Attributes;
@@ -24,7 +25,7 @@ namespace AquaMai.Mods.GameSystem;
 public class KeyMap
 {
     [ConfigEntry(
-        name: "禁用 IO4",
+        name: "禁用 IO4（1P）",
         en: """
             Disable IO4 (IO4-compatible board / segatools IO4 emulation) input.
             With IO4 input disabled, your IO4-compatible board or segatools IO4 emulation is ignored.
@@ -33,7 +34,19 @@ public class KeyMap
             禁用 IO4（兼容 IO4 板 / segatools IO4 模拟）输入。
             在禁用 IO4 输入后，你的兼容 IO4 板或 segatools IO4 模拟将被忽略。
             """)]
-    private static readonly bool disableIO4 = false;
+    private static readonly bool disableIO4_1P = false;
+    [ConfigEntry("禁用 IO4（2P）")]
+    private static readonly bool disableIO4_2P = false;
+
+    [ConfigEntry(
+        name: "禁用 IO4（系统按键）",
+        en: """
+            System buttons (test, service) input.
+            """,
+        zh: """
+            禁用系统按键的 IO4 输入，输入源同上。
+            """)]
+    private static readonly bool disableIO4System = false;
 
     [ConfigEntry(
         name: "禁用 DebugInput",
@@ -59,30 +72,45 @@ public class KeyMap
             """)]
     public static readonly bool disableDebugFeatureHotkeys = false; // Implemented in DebugFeature
 
-    [EnableIf(nameof(disableIO4))]
+    private static bool DisableIO4 => disableIO4_1P || disableIO4_2P || disableIO4System;
+    private static HashSet<SwitchInput> disabledSwitchInputs = [];
+
+    [EnableIf(nameof(DisableIO4))]
     [HarmonyPatch("IO.Jvs+JvsSwitch", ".ctor", MethodType.Constructor, [typeof(int), typeof(string), typeof(KeyCode), typeof(bool), typeof(bool)])]
-    [HarmonyPrefix]
-    public static void PreJvsSwitchConstructor(ref bool invert)
+    [HarmonyPostfix]
+    public static void PostJvsSwitchConstructor(ref bool ____invert, int playerNo, bool systemButton, SwitchInput ____switchInput)
     {
-        invert = false;
+        if ((systemButton && disableIO4System) || (playerNo == 0 && disableIO4_1P) || (playerNo == 1 && disableIO4_2P))
+        {
+            ____invert = false;
+            disabledSwitchInputs.Add(____switchInput);
+        }
     }
 
-    [EnableIf(nameof(disableIO4))]
-    [HarmonyPatch(typeof(SwitchInput), "get_IsOn")]
+    [EnableIf(nameof(DisableIO4))]
+    [HarmonyPatch(typeof(SwitchInput), nameof(SwitchInput.IsOn), MethodType.Getter)]
     [HarmonyPrefix]
-    public static bool PreGetIsOn(ref bool __result)
+    public static bool PreGetIsOn(ref bool __result, SwitchInput __instance)
     {
-        __result = false;
-        return false;
+        if (disabledSwitchInputs.Contains(__instance))
+        {
+            __result = false;
+            return false;
+        }
+        return true;
     }
 
-    [EnableIf(nameof(disableIO4))]
-    [HarmonyPatch(typeof(SwitchInput), "get_HasOnNow")]
+    [EnableIf(nameof(DisableIO4))]
+    [HarmonyPatch(typeof(SwitchInput), nameof(SwitchInput.HasOnNow), MethodType.Getter)]
     [HarmonyPrefix]
-    public static bool PreGetHasOnNow(ref bool __result)
+    public static bool PreGetHasOnNow(ref bool __result, SwitchInput __instance)
     {
-        __result = false;
-        return false;
+        if (disabledSwitchInputs.Contains(__instance))
+        {
+            __result = false;
+            return false;
+        }
+        return true;
     }
 
     [ConfigEntry]

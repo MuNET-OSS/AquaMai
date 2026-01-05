@@ -23,6 +23,10 @@ try {
     if ($gitDescribe.StartsWith("v")) {
         $gitDescribe = $gitDescribe.Substring(1)
     }
+    $branch = git rev-parse --abbrev-ref HEAD
+    if ($branch -ne "main") {
+        $gitDescribe = "$gitDescribe-$branch"
+    }
 
     $buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
