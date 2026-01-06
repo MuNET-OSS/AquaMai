@@ -22,7 +22,7 @@ public class SetFade
     [ConfigEntry(name: "转场类型", zh: "0:Normal, 1:Plus, 2:Festa（仅限1.60+）")]
     public static readonly int FadeType = 0;
 
-    [ConfigEntry(name: "[仅限1.55+]启用特殊KLD转场，需要下载额外JSON文件", zh: "仅在配置过的歌曲启用KLD转场。1.50及以下版本无效。1.50我不想适配了如果有人想适配可以dd我）@力大砖飞")]
+    [ConfigEntry(name: "特殊 KLD 转场", zh: "仅在配置过的歌曲启用 KLD 转场。1.50 及以下版本无效，需要使用额外 JSON 文件 配置")]
     public static readonly bool isKLDEnabled = true;
 
     private static readonly string JSONDir = "LocalAssets";
