@@ -25,8 +25,8 @@ public class SetFade
     [ConfigEntry(name: "特殊 KLD 转场", zh: "仅在配置过的歌曲启用 KLD 转场。1.50 及以下版本无效，需要使用额外 JSON 文件 配置")]
     public static readonly bool isKLDEnabled = true;
 
-    private static readonly string JSONDir = "LocalAssets";
-    private static readonly string JSONFileName = "CommonFadeList.json"; 
+    [ConfigEntry("特殊转场配置文件")]
+    private static readonly string JSONFileName = @"LocalAssets\CommonFadeList.json"; 
 
     private static bool isResourcePatchEnabled = false;
     private static bool _isInitialized = false;
