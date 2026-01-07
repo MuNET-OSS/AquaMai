@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Linq;
@@ -31,22 +31,121 @@ public class AdxHidInput
     private static byte[,] inputBufPending = new byte[2, 32];
     private static double[] td = [0, 0];
     private static bool tdEnabled, keyEnabled, pipeEnabled;
+    private static bool[] hidThreadRunning = [false, false];
+
+    private static bool TryConnectDevice(int p)
+    {
+        var device = p == 0
+            ? HidDevices.Enumerate(0x2E3C, [0x5750, 0x5767]).FirstOrDefault(it => !it.DevicePath.EndsWith("kbd"))
+            : HidDevices.Enumerate(0x2E4C, 0x5750).Concat(HidDevices.Enumerate(0x2E3C, 0x5768)).FirstOrDefault(it => !it.DevicePath.EndsWith("kbd"));
+
+        if (device == null) return false;
+
+        adxController[p] = device;
+        device.OpenDevice();
+        MelonLogger.Msg($"[HidInput] Device {p + 1}P connected");
+
+        return true;
+    }
+
+    private static bool IsDeviceAvailable(int p)
+    {
+        var device = adxController[p];
+        if (device == null) return false;
+
+        try
+        {
+            return device.IsConnected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void DisconnectDevice(int p)
+    {
+        var device = adxController[p];
+        if (device == null) return;
+
+        try
+        {
+            device.CloseDevice();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        adxController[p] = null;
+
+        for (int i = 0; i < 32; i++)
+        {
+            inputBuf[p, i] = 0;
+            inputBufPending[p, i] = 0;
+        }
+
+        MelonLogger.Msg($"[HidInput] Device {p + 1}P disconnected");
+    }
+
+    private static bool NeedsButtonInput(int p)
+    {
+        var device = adxController[p];
+        if (device == null) return false;
+        try
+        {
+            return device.Attributes.ProductId is not (0x5767 or 0x5768);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private static void HidInputThread(int p)
     {
         while (true)
         {
-            if (adxController[p] == null) return;
-            var report1P = adxController[p].Read();
-            if (report1P.Status != HidDeviceData.ReadStatus.Success || report1P.Data.Length <= 13) continue;
-            for (int i = 0; i < 14; i++)
+            while (!IsDeviceAvailable(p))
             {
-                var newState = report1P.Data[i];
-                if (newState == 1 && inputBuf[p, i] == 0)
+                Thread.Sleep(500);
+                TryConnectDevice(p);
+            }
+
+            if (!NeedsButtonInput(p))
+            {
+                Thread.Sleep(500);
+                continue;
+            }
+
+            var device = adxController[p];
+            if (device == null) continue;
+
+            try
+            {
+                var report = device.Read();
+
+                if (report.Status != HidDeviceData.ReadStatus.Success)
                 {
-                    inputBufPending[p, i] = 1;
+                    DisconnectDevice(p);
+                    continue;
                 }
-                inputBuf[p, i] = newState;
+
+                if (report.Data.Length <= 13) continue;
+
+                for (int i = 0; i < 14; i++)
+                {
+                    var newState = report.Data[i];
+                    if (newState == 1 && inputBuf[p, i] == 0)
+                    {
+                        inputBufPending[p, i] = 1;
+                    }
+                    inputBuf[p, i] = newState;
+                }
+            }
+            catch
+            {
+                DisconnectDevice(p);
             }
         }
     }
@@ -99,28 +198,30 @@ public class AdxHidInput
 
     public static void OnBeforeEnableCheck()
     {
-        adxController[0] = HidDevices.Enumerate(0x2E3C, [0x5750, 0x5767]).FirstOrDefault(it => !it.DevicePath.EndsWith("kbd"));
-        adxController[1] = HidDevices.Enumerate(0x2E4C, 0x5750).Concat(HidDevices.Enumerate(0x2E3C, 0x5768)).FirstOrDefault(it => !it.DevicePath.EndsWith("kbd"));
-
-        if (adxController[0] != null)
-        {
-            MelonLogger.Msg("[HidInput] Open HID 1P OK");
-        }
-
-        if (adxController[1] != null)
-        {
-            MelonLogger.Msg("[HidInput] Open HID 2P OK");
-        }
+        TryConnectDevice(0);
+        TryConnectDevice(1);
 
         for (int i = 0; i < 2; i++)
         {
-            if (adxController[i] == null) continue;
-            TdInit(i);
-            if (adxController[i].Attributes.ProductId is 0x5767 or 0x5768) continue;
-            if (disableButtons) continue;
+            if (adxController[i] != null)
+            {
+                TdInit(i);
+            }
+        }
+
+        if (disableButtons) return;
+
+        for (int i = 0; i < 2; i++)
+        {
+            if (hidThreadRunning[i]) continue;
+
             keyEnabled = true;
+            hidThreadRunning[i] = true;
             var p = i;
-            Thread hidThread = new Thread(() => HidInputThread(p));
+            var hidThread = new Thread(() => HidInputThread(p))
+            {
+                IsBackground = true
+            };
             hidThread.Start();
         }
     }
