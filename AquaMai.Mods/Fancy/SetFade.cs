@@ -1,7 +1,7 @@
 using HarmonyLib;
 using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
-using Process; 
+using Process;
 using UnityEngine;
 using UnityEngine.UI;
 using System;
@@ -11,6 +11,7 @@ using MelonLoader;
 using MelonLoader.TinyJSON;
 using System.Collections.Generic;
 using Monitor;
+using Mono.Posix;
 
 namespace AquaMai.Mods.Fancy;
 
@@ -24,7 +25,6 @@ public class SetFade
 
     [ConfigEntry(name: "[仅限1.55+]启用特殊KLD转场", zh: "仅在配置过的歌曲启用KLD转场。")]
     public static readonly bool isKLDEnabled = true;
-
     private static readonly string JSONDir = "LocalAssets";
     private static readonly string JSONFileName = "CommonFadeList.json";
 
@@ -34,7 +34,7 @@ public class SetFade
     private static List<CommonFadeEntry> cachedEntries = new List<CommonFadeEntry>();
 
     private static int _kldRemainingCharges = 0;
-    private static CommonFadeEntry _activeKldConfig = null;
+    internal static CommonFadeEntry _activeKldConfig = null;
 
     // --- TinyJson 数据模型 ---
     // 注意：字段名必须与 JSON 中的 Key 完全一致，且必须为 public
@@ -53,15 +53,15 @@ public class SetFade
         subBGs[0] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_01");
         subBGs[1] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_02");
         subBGs[2] = (GameInfo.GameVersion >= 26000) ? Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_03") : subBGs[0];
-        
+
         LoadJsonManual();
-        
+
         _isInitialized = true;
         return true;
     }
 
     // --- 1. 核心解析逻辑：使用 TinyJson ---
-private static void LoadJsonManual()
+    private static void LoadJsonManual()
     {
         try
         {
@@ -78,12 +78,12 @@ private static void LoadJsonManual()
             // --- 修复 Line 80 ---
             // 错误写法: var data = Process.TinyJson.FromJson<List<CommonFadeEntry>>(jsonContent);
             // 正确写法 (使用 MelonLoader.TinyJSON):
-            
+
             var variant = JSON.Load(jsonContent); // 1. 先载入为 Variant 对象
             if (variant != null)
             {
                 var data = variant.Make<List<CommonFadeEntry>>(); // 2. 再转换为具体的 List
-                
+
                 if (data != null)
                 {
                     cachedEntries = data;
@@ -228,7 +228,8 @@ private static void LoadJsonManual()
                 if (ctrl != null)
                 {
                     ctrl.SetBackGroundType(cfg.isBlack != 0 ? KaleidxScopeFadeController.BackGroundType.Black : KaleidxScopeFadeController.BackGroundType.Normal);
-                    ctrl.SetSpriteType((KaleidxScopeFadeController.SpriteType)cfg.Type);
+                    if (cfg.Type == 10) ctrl.SetSpriteType((KaleidxScopeFadeController.SpriteType)7);
+                    else ctrl.SetSpriteType((KaleidxScopeFadeController.SpriteType)cfg.Type);
                     if (Enum.TryParse<KaleidxScopeFadeController.AnimState>(animName, out var state))
                         ctrl.PlayAnimation(state);
                 }
@@ -239,7 +240,8 @@ private static void LoadJsonManual()
                 if (sCtrl != null)
                 {
                     sCtrl.SetBackGroundType(cfg.isBlack != 0 ? KaleidxScopeSubFadeController.BackGroundType.Black : KaleidxScopeSubFadeController.BackGroundType.Normal);
-                    sCtrl.SetSpriteType((KaleidxScopeSubFadeController.SpriteType)cfg.Type);
+                    if (cfg.Type == 10) sCtrl.SetSpriteType((KaleidxScopeSubFadeController.SpriteType)7);
+                    else sCtrl.SetSpriteType((KaleidxScopeSubFadeController.SpriteType)cfg.Type);
                     sCtrl.PlayAnimation(KaleidxScopeSubFadeController.AnimState.In);
                 }
             }
