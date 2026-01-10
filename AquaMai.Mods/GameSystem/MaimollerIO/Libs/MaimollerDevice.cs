@@ -41,7 +41,8 @@ public class MaimollerDevice(int player)
 
         // To align with the driver from manufacturer, 1P = 0 and 2P = 2.
         // But in IDA the devices array is {p1, p2, p1} and devices[0] == devices[2], so why?
-        _dev = adx_open(player == 0 ? 0 : 2);
+        // 经过测试，2P是1
+        _dev = adx_open(player == 0 ? 0 : 1);
     }
 
     public void Update()
