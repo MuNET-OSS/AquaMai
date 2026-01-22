@@ -12,9 +12,9 @@ public class PdxTouch
     public static readonly int radius = 30;
 
     [ConfigEntry("1P 序列号", zh: "如果要组 2P，请在这里指定对应的序列号。否则将自动使用第一个检测到的设备作为 1P")]
-    public static readonly string serial1p;
+    public static readonly string serial1p = "";
     [ConfigEntry("2P 序列号")]
-    public static readonly string serial2p;
+    public static readonly string serial2p = "";
 
     private static readonly PdxTouchDevice[] devices = new PdxTouchDevice[2];
 
