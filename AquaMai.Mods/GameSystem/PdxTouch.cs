@@ -1,15 +1,15 @@
 using System;
 using AquaMai.Config.Attributes;
+using AquaMai.Mods.GameSystem.ExclusiveTouch;
 using LibUsbDotNet.Main;
 
-namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
+namespace AquaMai.Mods.GameSystem;
 
-[ConfigCollapseNamespace]
 [ConfigSection("PDX 独占触摸")]
 public class PdxTouch
 {
     [ConfigEntry("触摸体积半径", zh: "基准是 1440x1440")]
-    public static readonly int radius;
+    public static readonly int radius = 30;
 
     [ConfigEntry("1P 序列号", zh: "如果要组 2P，请在这里指定对应的序列号。否则将自动使用第一个检测到的设备作为 1P")]
     public static readonly string serial1p;
