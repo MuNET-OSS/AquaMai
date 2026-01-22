@@ -231,15 +231,27 @@ public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, f
         // 检查所有传感器
         for (int i = 0; i < 34; i++)
         {
-            bool isInsidePolygon = PolygonRaycasting.IsVertDistance(_sensors[i], canvasPoint, radius);
-            if (!isInsidePolygon)
+            bool isInsidePolygon;
+            
+            if (radius > 0)
             {
-                isInsidePolygon = PolygonRaycasting.IsCircleIntersectingPolygonEdges(_sensors[i], canvasPoint, radius);
+                // 当有半径时，需要检查圆与多边形的关系
+                isInsidePolygon = PolygonRaycasting.IsVertDistance(_sensors[i], canvasPoint, radius);
+                if (!isInsidePolygon)
+                {
+                    isInsidePolygon = PolygonRaycasting.IsCircleIntersectingPolygonEdges(_sensors[i], canvasPoint, radius);
+                }
+                if (!isInsidePolygon)
+                {
+                    isInsidePolygon = PolygonRaycasting.InPointInInternal(_sensors[i], canvasPoint);
+                }
             }
-            if (!isInsidePolygon)
+            else
             {
+                // 当半径为0时，只需要检查点是否在多边形内部
                 isInsidePolygon = PolygonRaycasting.InPointInInternal(_sensors[i], canvasPoint);
             }
+            
             if (isInsidePolygon)
             {
                 res |= 1ul << i;
