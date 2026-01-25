@@ -1,4 +1,4 @@
-﻿using AquaMai.Config.Attributes;
+using AquaMai.Config.Attributes;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
@@ -150,7 +150,7 @@ public class NextTrackTips
             // Play the sound effects and voice line
             SoundManager.PlaySE(Mai2.Mai2Cue.Cue.JINGLE_NEXT_TRACK, i);
 
-            Mai2.Voice_Partner_000001.Cue nextTrackVoice = UnityEngine.Random.Range(0, 1) == 0 ? Mai2.Voice_Partner_000001.Cue.VO_000151 : Mai2.Voice_Partner_000001.Cue.VO_000152;
+            Mai2.Voice_Partner_000001.Cue nextTrackVoice = UnityEngine.Random.Range(0, 2) == 0 ? Mai2.Voice_Partner_000001.Cue.VO_000151 : Mai2.Voice_Partner_000001.Cue.VO_000152;
             if (GameManager.MusicTrackNumber + 1U == GameManager.GetMaxTrackCount())
                 nextTrackVoice = Mai2.Voice_Partner_000001.Cue.VO_000153;
             SoundManager.PlayPartnerVoice(nextTrackVoice, i);
@@ -213,7 +213,7 @@ public class NextTrackTips
             // Play the sound effects and voice line
             SoundManager.PlaySE(Mai2.Mai2Cue.Cue.JINGLE_NEXT_TRACK, i);
 
-            Mai2.Voice_Partner_000001.Cue nextTrackVoice = UnityEngine.Random.Range(0, 1) == 0 ? Mai2.Voice_Partner_000001.Cue.VO_000151 : Mai2.Voice_Partner_000001.Cue.VO_000152;
+            Mai2.Voice_Partner_000001.Cue nextTrackVoice = UnityEngine.Random.Range(0, 2) == 0 ? Mai2.Voice_Partner_000001.Cue.VO_000151 : Mai2.Voice_Partner_000001.Cue.VO_000152;
             // WTF SBGA??
             if (GameManager.MusicTrackNumber == GameManager.GetMaxTrackCount())
                 nextTrackVoice = Mai2.Voice_Partner_000001.Cue.VO_000153;
