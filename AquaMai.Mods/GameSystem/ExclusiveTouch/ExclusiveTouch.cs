@@ -91,22 +91,31 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     {
         byte[] buffer = new byte[packetSize];
         var reader = device.OpenEndpointReader(endpoint);
-        while (device != null)
+        
+        try
         {
-            int bytesRead;
-            ErrorCode ec = reader.Read(buffer, 100, out bytesRead); // 100ms 超时
-
-            if (ec != ErrorCode.None)
+            while (device != null)
             {
-                if (ec == ErrorCode.IoTimedOut) continue; // 超时就继续等
-                MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误: {ec}");
-                break;
-            }
+                int bytesRead;
+                ErrorCode ec = reader.Read(buffer, 100, out bytesRead); // 100ms 超时
 
-            if (bytesRead > 0)
-            {
-                OnTouchData(buffer);
+                if (ec != ErrorCode.None)
+                {
+                    if (ec == ErrorCode.IoTimedOut) continue; // 超时就继续等
+                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误: {ec}");
+                    break;
+                }
+
+                if (bytesRead > 0)
+                {
+                    OnTouchData(buffer);
+                }
             }
+        }
+        finally
+        {
+            // 确保 reader 被正确释放
+            reader?.Dispose();
         }
     }
 
