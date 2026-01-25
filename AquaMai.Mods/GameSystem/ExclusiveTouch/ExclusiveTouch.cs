@@ -9,7 +9,7 @@ using JetBrains.Annotations;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
-public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeNull] string serialNumber, byte configuration, int interfaceNumber, ReadEndpointID endpoint, int packetSize, int minX, int minY, int maxX, int maxY, bool flip, int radius)
+public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeNull] string serialNumber, [CanBeNull] string locationPath, byte configuration, int interfaceNumber, ReadEndpointID endpoint, int packetSize, int minX, int minY, int maxX, int maxY, bool flip, int radius)
 {
     private UsbDevice device;
     private TouchSensorMapper touchSensorMapper;
@@ -33,11 +33,28 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     public void Start()
     {
         // 方便组 2P
-        var finder = new UsbDeviceFinder(vid, pid, string.IsNullOrWhiteSpace(serialNumber) ? null : serialNumber);
+        UsbDeviceFinder finder;
+        
+        if (!string.IsNullOrWhiteSpace(serialNumber))
+        {
+            // 优先使用序列号
+            finder = new UsbDeviceFinder(vid, pid, serialNumber);
+        }
+        else if (!string.IsNullOrWhiteSpace(locationPath))
+        {
+            // 使用位置路径匹配
+            finder = new UsbDeviceLocationFinder(vid, pid, locationPath);
+        }
+        else
+        {
+            // 使用第一个匹配的设备
+            finder = new UsbDeviceFinder(vid, pid);
+        }
+        
         device = UsbDevice.OpenUsbDevice(finder);
         if (device == null)
         {
-            MelonLogger.Msg("[ExclusiveTouch] Cannot connect 1P");
+            MelonLogger.Msg($"[ExclusiveTouch] Cannot connect {playerNo + 1}P");
         }
         else
         {
