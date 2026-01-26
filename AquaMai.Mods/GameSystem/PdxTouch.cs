@@ -9,7 +9,7 @@ namespace AquaMai.Mods.GameSystem;
 public class PdxTouch
 {
     [ConfigEntry("触摸体积半径", zh: "基准是 1440x1440")]
-    public static readonly int radius = 30;
+    public static readonly int radius = 12;
 
     [ConfigEntry("1P 设备路径", zh: "USB 端口路径，例如 2.2。请使用配置工具中显示的路径。留空则使用第一个检测到的设备作为 1P")]
     public static readonly string path1p = "";
