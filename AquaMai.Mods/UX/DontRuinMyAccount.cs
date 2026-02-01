@@ -107,13 +107,32 @@ public class DontRuinMyAccount
         ignoreScore = false;
         var musicid = GameManager.SelectMusicID[0];
         var difficulty = GameManager.SelectDifficultyID[0];
+        
         // current music playlog
         var score = Singleton<GamePlayManager>.Instance.GetGameScore(0, (int)currentTrackNumber - 1);
-        // score.Achivement = 0; // Private setter, so reflection is essential
-        typeof(GameScoreList).GetProperty("Achivement", BindingFlags.Public | BindingFlags.Instance)?.GetSetMethod(true)?.Invoke(score, [0m]);
-        typeof(GameScoreList).GetProperty("ComboType", BindingFlags.Public | BindingFlags.Instance)?.GetSetMethod(true)?.Invoke(score, [PlayComboflagID.None]);
-        typeof(GameScoreList).GetProperty("NowComboType", BindingFlags.Public | BindingFlags.Instance)?.GetSetMethod(true)?.Invoke(score, [PlayComboflagID.None]);
+        var t = Traverse.Create(score);
+        // 设置各个成绩相关的字段，清零
+        t.Property<Decimal>("Achivement").Value = 0m;
+        t.Property<PlayComboflagID>("ComboType").Value = PlayComboflagID.None;
+        t.Property<PlayComboflagID>("NowComboType").Value = PlayComboflagID.None;
         score.SyncType = PlaySyncflagID.None;
+        score.IsClear = false;
+        t.Property<uint>("DxScore").Value = 0u;
+        t.Property<uint>("MaxCombo").Value = 0u;
+        t.Property<uint>("MaxChain").Value = 0u; // 最大同步数
+        // 把所有判定结果清零（直接把判定表清零，而不是转为miss）
+        t.Property<uint>("Fast").Value = 0u;
+        t.Property<uint>("Late").Value = 0u;
+        var judgeList = t.Field<uint[,]>("_resultList").Value;
+        int rows = judgeList.GetLength(0), cols = judgeList.GetLength(1);
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                judgeList[r, c] = 0u;
+            }
+        }
+        
         // user's all scores
         var userData = Singleton<UserDataManager>.Instance.GetUserData(0);
         var userScoreDict = userData.ScoreDic[difficulty];
