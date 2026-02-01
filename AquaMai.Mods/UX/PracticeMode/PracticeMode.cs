@@ -75,6 +75,7 @@ public class PracticeMode
 
         movie.player.SetSpeed(speed);
         gameCtrl?.ResetOptionSpeed();
+        DontRuinMyAccount.triggerForPracticeMode();
     }
 
     private static IEnumerator SetSpeedCoroutineInner()

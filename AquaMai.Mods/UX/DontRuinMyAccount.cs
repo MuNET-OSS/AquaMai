@@ -25,10 +25,19 @@ public class DontRuinMyAccount
 {
     [ConfigEntry(zh: "AutoPlay 激活后显示提示", en: "Show notice when AutoPlay is activated")]
     public static readonly bool showNotice = true;
+    [ConfigEntry(zh: "使用练习模式/DebugFeature相关功能也不保存成绩", en: "Also not save scores when using PracticeMode/DebugFeature")]
+    public static readonly bool forPracticeMode = false;
+    
     private static uint currentTrackNumber => GameManager.MusicTrackNumber;
     public static bool ignoreScore;
     private static UserScore oldScore;
     
+    // 当练习模式相关功能启动时，应当调用本函数
+    public static void triggerForPracticeMode()
+    {
+        if (forPracticeMode) trigger();
+    }
+
     public static void trigger()
     {
         if (!(GameManager.IsInGame && !ignoreScore)) return;

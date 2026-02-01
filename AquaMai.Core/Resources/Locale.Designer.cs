@@ -69,7 +69,7 @@ namespace AquaMai.Core.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Autoplay was used, score will not be saved..
+        ///   Looks up a localized string similar to Autoplay/PracticeMode was used, score will not be saved..
         /// </summary>
         public static string AutoplayWasUsed {
             get {
@@ -227,7 +227,7 @@ namespace AquaMai.Core.Resources {
         ///   Looks up a localized string similar to Did you double-click Sinmai.exe directly? That&apos;s not how it works. There should be something called &quot;start.bat&quot; or &quot;启动.bat&quot;, and you need to use it to start.
         ///Check if your AMDaemon is still alive (look for a command line window called AMDaemon.exe running in the background).
         ///If the window has disappeared, then there might be some issues with your configuration. Please check your segatools.ini carefully.
-        ///Maybe the window is there, but it&apos;s constantly scrolling errors. If that&apos;s the case, then there might als [rest of string was truncated]&quot;;.
+        ///Maybe the window is there, but it&apos;s constantly scrolling errors. If that&apos;s the case, then there might  [rest of string was truncated]&quot;;.
         /// </summary>
         public static string NoAmDaemonAlertMessage {
             get {
