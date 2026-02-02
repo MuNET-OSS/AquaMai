@@ -122,14 +122,7 @@ public class DontRuinMyAccount
         t.Property<uint>("Fast").Value = 0u;
         t.Property<uint>("Late").Value = 0u;
         var judgeList = t.Field<uint[,]>("_resultList").Value;
-        int rows = judgeList.GetLength(0), cols = judgeList.GetLength(1);
-        for (int r = 0; r < rows; r++)
-        {
-            for (int c = 0; c < cols; c++)
-            {
-                judgeList[r, c] = 0u;
-            }
-        }
+        Array.Clear(judgeList, 0, judgeList.Length);
         
         // user's all scores
         var userData = Singleton<UserDataManager>.Instance.GetUserData(0);
