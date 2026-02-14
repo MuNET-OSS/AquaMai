@@ -84,6 +84,7 @@
 输入和灵敏度:
   - GameSystem.AdxHidInput
   - GameSystem.MaimollerIO
+  - GameSystem.PdxTouch
   - GameSystem.KeyMap
   - GameSettings.TouchSensitivity
 

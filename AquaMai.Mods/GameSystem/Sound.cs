@@ -17,6 +17,12 @@ public static class Sound
     private readonly static bool enableExclusive = false;
 
     [ConfigEntry(
+        name: "位深度",
+        zh: "如果不知道是什么，请不要修改",
+        en: "If you don't know what it is, please don't modify it")]
+    private readonly static ushort bitDepth = 24;
+
+    [ConfigEntry(
         name: "八声道",
         en: "Enable 8-Channel")]
     private readonly static bool enable8Channel = false;
@@ -49,7 +55,7 @@ public static class Sound
             },
             Samples = new CriAtomUserExtension.Samples
             {
-                wValidBitsPerSample = 24,
+                wValidBitsPerSample = bitDepth,
             },
             dwChannelMask = enable8Channel ? 1599u : 3u,
             SubFormat = new Guid("00000001-0000-0010-8000-00aa00389b71")
