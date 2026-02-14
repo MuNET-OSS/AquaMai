@@ -17,10 +17,19 @@ public static class Sound
     private readonly static bool enableExclusive = false;
 
     [ConfigEntry(
-        name: "位深度",
         zh: "如果不知道是什么，请不要修改",
         en: "If you don't know what it is, please don't modify it")]
-    private readonly static ushort bitDepth = 24;
+    private readonly static ushort bitsPerSample = 32;
+
+    [ConfigEntry(
+        zh: "如果不知道是什么，请不要修改",
+        en: "If you don't know what it is, please don't modify it")]
+    private readonly static ushort validBitsPerSample = 24;
+
+    [ConfigEntry(
+        zh: "如果不知道是什么，请不要修改",
+        en: "If you don't know what it is, please don't modify it")]
+    private readonly static uint samplesPerSec = 48000u;
 
     [ConfigEntry(
         name: "八声道",
@@ -34,11 +43,9 @@ public static class Sound
 
     private static CriAtomUserExtension.AudioClientShareMode AudioShareMode => enableExclusive ? CriAtomUserExtension.AudioClientShareMode.Exclusive : CriAtomUserExtension.AudioClientShareMode.Shared;
 
-    private const ushort wBitsPerSample = 32;
-    private const uint nSamplesPerSec = 48000u;
     private static ushort nChannels => enable8Channel ? (ushort)8 : (ushort)2;
-    private static ushort nBlockAlign => (ushort)(wBitsPerSample / 8 * nChannels);
-    private static uint nAvgBytesPerSec => nSamplesPerSec * nBlockAlign;
+    private static ushort nBlockAlign => (ushort)(bitsPerSample / 8 * nChannels);
+    private static uint nAvgBytesPerSec => samplesPerSec * nBlockAlign;
 
     private static CriAtomUserExtension.WaveFormatExtensible CreateFormat() =>
         new()
@@ -46,8 +53,8 @@ public static class Sound
             Format = new CriAtomUserExtension.WaveFormatEx
             {
                 wFormatTag = 65534,
-                nSamplesPerSec = nSamplesPerSec,
-                wBitsPerSample = wBitsPerSample,
+                nSamplesPerSec = samplesPerSec,
+                wBitsPerSample = bitsPerSample,
                 cbSize = 22,
                 nChannels = nChannels,
                 nBlockAlign = nBlockAlign,
@@ -55,7 +62,7 @@ public static class Sound
             },
             Samples = new CriAtomUserExtension.Samples
             {
-                wValidBitsPerSample = bitDepth,
+                wValidBitsPerSample = validBitsPerSample,
             },
             dwChannelMask = enable8Channel ? 1599u : 3u,
             SubFormat = new Guid("00000001-0000-0010-8000-00aa00389b71")
