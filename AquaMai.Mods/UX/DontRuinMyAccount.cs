@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using AquaMai.Config.Attributes;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
@@ -26,43 +25,40 @@ public class DontRuinMyAccount
 {
     [ConfigEntry(zh: "AutoPlay 激活后显示提示", en: "Show notice when AutoPlay is activated")]
     public static readonly bool showNotice = true;
+    [ConfigEntry(zh: "使用练习模式/DebugFeature相关功能也不保存成绩", en: "Also not save scores when using PracticeMode/DebugFeature")]
+    public static readonly bool forPracticeMode = true;
+
+    private static bool Enabled = false; // 需要有一个flag来标记本模块是否被disable了，不然如果disable了本模块后，开练习模式时调用到triggerForPracticeMode还是触发了功能就不对了。
     private static uint currentTrackNumber => GameManager.MusicTrackNumber;
     public static bool ignoreScore;
     private static UserScore oldScore;
+    
+    // 当练习模式相关功能启动时，应当调用本函数
+    public static void triggerForPracticeMode()
+    {
+        if (forPracticeMode) trigger();
+    }
+
+    public static void trigger()
+    {
+        if (!(Enabled && !ignoreScore && GameManager.IsInGame)) return;
+        // 对8号和10号门，永不启用防毁号（它们中用到了autoplay功能来模拟特殊谱面效果）
+        if (GameManager.IsKaleidxScopeMode && (Singleton<KaleidxScopeManager>.Instance.gateId == 8 ||
+                                               Singleton<KaleidxScopeManager>.Instance.gateId == 10)) return;
+        ignoreScore = true;
+        MelonLogger.Msg("[DontRuinMyAccount] Triggered. Will ignore this score.");
+    }
+
+    public static void OnBeforePatch()
+    {
+        Enabled = true;
+    }
 
     [HarmonyPatch(typeof(GameProcess), "OnUpdate")]
     [HarmonyPostfix]
     public static void OnUpdate()
     {
-        if (GameManager.IsInGame && GameManager.IsAutoPlay() && !ignoreScore)
-        {
-            if (GameManager.IsKaleidxScopeMode)
-            {
-                if (Singleton<KaleidxScopeManager>.Instance.gateId == 8 ||
-                    Singleton<KaleidxScopeManager>.Instance.gateId == 10)
-                {
-                    ignoreScore = false;
-                }
-                else
-                {
-                    ignoreScore = true;
-                    MelonLogger.Msg("[DontRuinMyAccount] Autoplay triggered, will ignore this score.");
-                }
-            }
-            else
-            {
-                ignoreScore = true;
-                MelonLogger.Msg("[DontRuinMyAccount] Autoplay triggered, will ignore this score.");
-            }
-        }
-    }
-
-    [HarmonyPatch(typeof(GameProcess), "OnStart")]
-    [HarmonyPostfix]
-    [EnableIf(nameof(showNotice))]
-    public static void OnStart(GameMonitor[] ____monitors)
-    {
-        ____monitors[0].gameObject.AddComponent<NoticeUI>();
+        if (GameManager.IsInGame && GameManager.IsAutoPlay()) trigger();
     }
 
     [HarmonyPrefix]
@@ -107,13 +103,25 @@ public class DontRuinMyAccount
         ignoreScore = false;
         var musicid = GameManager.SelectMusicID[0];
         var difficulty = GameManager.SelectDifficultyID[0];
+        
         // current music playlog
         var score = Singleton<GamePlayManager>.Instance.GetGameScore(0, (int)currentTrackNumber - 1);
-        // score.Achivement = 0; // Private setter, so reflection is essential
-        typeof(GameScoreList).GetProperty("Achivement", BindingFlags.Public | BindingFlags.Instance)?.GetSetMethod(true)?.Invoke(score, [0m]);
-        typeof(GameScoreList).GetProperty("ComboType", BindingFlags.Public | BindingFlags.Instance)?.GetSetMethod(true)?.Invoke(score, [PlayComboflagID.None]);
-        typeof(GameScoreList).GetProperty("NowComboType", BindingFlags.Public | BindingFlags.Instance)?.GetSetMethod(true)?.Invoke(score, [PlayComboflagID.None]);
+        var t = Traverse.Create(score);
+        // 设置各个成绩相关的字段，清零
+        t.Property<Decimal>("Achivement").Value = 0m;
+        t.Property<PlayComboflagID>("ComboType").Value = PlayComboflagID.None;
+        t.Property<PlayComboflagID>("NowComboType").Value = PlayComboflagID.None;
         score.SyncType = PlaySyncflagID.None;
+        score.IsClear = false;
+        t.Property<uint>("DxScore").Value = 0u;
+        t.Property<uint>("MaxCombo").Value = 0u;
+        t.Property<uint>("MaxChain").Value = 0u; // 最大同步数
+        // 把所有判定结果清零（直接把判定表清零，而不是转为miss）
+        t.Property<uint>("Fast").Value = 0u;
+        t.Property<uint>("Late").Value = 0u;
+        var judgeList = t.Field<uint[,]>("_resultList").Value;
+        Array.Clear(judgeList, 0, judgeList.Length);
+        
         // user's all scores
         var userData = Singleton<UserDataManager>.Instance.GetUserData(0);
         var userScoreDict = userData.ScoreDic[difficulty];
@@ -131,10 +139,10 @@ public class DontRuinMyAccount
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameProcess), nameof(GameProcess.OnStart))]
-    public static void OnGameStart()
+    public static void OnGameStart(GameMonitor[] ____monitors)
     {
-        // For compatibility with QuickRetry
-        ignoreScore = false;
+        ignoreScore = false; // For compatibility with QuickRetry
+        if (showNotice) ____monitors[0].gameObject.AddComponent<NoticeUI>();
     }
 
     private class NoticeUI : MonoBehaviour

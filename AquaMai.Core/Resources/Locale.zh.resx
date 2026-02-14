@@ -163,7 +163,7 @@
         <value>AutoPlay开启中</value>
     </data>
     <data name="AutoplayWasUsed" xml:space="preserve">
-        <value>Autoplay曾开启过，本曲成绩不会被上传。</value>
+        <value>Autoplay或练习模式曾开启过，本曲成绩不会被上传。</value>
     </data>
     <data name="UnableSaveConfig" xml:space="preserve">
         <value>=============================================!!!

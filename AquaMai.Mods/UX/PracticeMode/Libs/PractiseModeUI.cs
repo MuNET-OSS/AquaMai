@@ -131,7 +131,7 @@ public class PracticeModeUI : MonoBehaviour
         else if (InputManager.GetTouchPanelAreaDown(InputManager.TouchPanelArea.E4))
         {
             PracticeMode.keepNoteSpeed = !PracticeMode.keepNoteSpeed;
-            PracticeMode.gameCtrl?.ResetOptionSpeed();
+            PracticeMode.GameCtrlResetOptionSpeed();
         }
         else if (
             InputManager.GetTouchPanelAreaDown(InputManager.TouchPanelArea.A1) ||

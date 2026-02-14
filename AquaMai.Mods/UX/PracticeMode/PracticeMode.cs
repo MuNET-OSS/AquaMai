@@ -40,8 +40,8 @@ public class PracticeMode
     public static double repeatEnd = -1;
     public static float speed = 1;
     private static CriAtomExPlayer player;
-    private static MovieMaterialMai2 movie;
-    public static GameCtrl gameCtrl;
+    private static List<MovieMaterialMai2> movie;
+    private static GameCtrl[] gameCtrl = new GameCtrl[2];
     public static bool keepNoteSpeed = false;
 
     public static void SetRepeatEnd(double time)
@@ -67,14 +67,28 @@ public class PracticeMode
         repeatEnd = -1;
     }
 
+    public static void GameCtrlResetOptionSpeed()
+    {
+        foreach (var g in gameCtrl)
+        {
+            try
+            {
+                g?.ResetOptionSpeed();
+            }
+            catch (NullReferenceException) {} // 忽略即可，因为SBGA的代码在ResetOptionSpeed内部没有做null检查，单刷的时候对2P那侧这个函数必定会抛NPE
+        }
+    }
+
     public static void SetSpeed()
     {
+        DontRuinMyAccount.triggerForPracticeMode();
+        
         player.SetPitch((float)(1200 * Math.Log(speed, 2)));
         // player.SetDspTimeStretchRatio(1 / speed);
         player.UpdateAll();
-
-        movie.player.SetSpeed(speed);
-        gameCtrl?.ResetOptionSpeed();
+        
+        movie?.ForEach(m => m.player?.SetSpeed(speed));
+        GameCtrlResetOptionSpeed();
     }
 
     private static IEnumerator SetSpeedCoroutineInner()
@@ -195,7 +209,7 @@ public class PracticeMode
     [HarmonyPostfix]
     public static void GameCtrlPostInitialize(GameCtrl __instance)
     {
-        gameCtrl = __instance;
+        gameCtrl[__instance.MonitorIndex] =__instance;
     }
 
 # if DEBUG
@@ -304,8 +318,12 @@ public class PracticeMode
 
     [HarmonyPatch(typeof(MovieController), "Awake")]
     [HarmonyPostfix]
-    public static void MovieControllerPostAwake(MovieMaterialMai2 ____moviePlayers)
+    public static void MovieControllerPostAwake(object ____moviePlayers)
     {
-        movie = ____moviePlayers;
+        // 1.55以上，_moviePlayers是List<MovieMaterialMai2>；1.50以下，___moviePlayers是MovieMaterialMai2。
+        // 所以这里用object承接，再根据object的类型做具体处理
+        if (____moviePlayers is List<MovieMaterialMai2> mList) movie = mList;
+        else if (____moviePlayers is MovieMaterialMai2 m) movie = new([m]);
+        else MelonLogger.Error("[PracticeMode] MovieControllerPostAwake: [BUG] 收到的____moviePlayers参数不正确");
     }
 }
