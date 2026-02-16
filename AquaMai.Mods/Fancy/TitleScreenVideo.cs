@@ -8,6 +8,7 @@ using MelonLoader;
 using Monitor;
 using Process;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Video;
 
@@ -31,7 +32,9 @@ public class TitleScreenVideo
 
     private static List<string>[] _disabledCompoments = [[], []];
 
-    private static bool _isVideoPrepared = false;
+    private static int _videoPreparedCount = 0;
+    private static bool IsVideoPrepared => _videoPreparedCount >= 2;
+
     private static bool _isAudioPrepared = false;
 
     [HarmonyPostfix]
@@ -88,13 +91,11 @@ public class TitleScreenVideo
 
                 movieSprite.size = new Vector2(calWidth, calHeight);
 
-                _isVideoPrepared = true;
+                Interlocked.Increment(ref _videoPreparedCount);
             };
 
             _videoPlayers[i].errorReceived += (source, err) =>
             {
-                _isVideoPrepared = false;
-
                 MelonLogger.Error($"[TitleScreenVideo] Failed to load video file: {err}");
             };
 
@@ -119,7 +120,7 @@ public class TitleScreenVideo
             case AdvertiseProcess.AdvertiseSequence.Logo:
                 // Re-enable original title screen elements if the video is unavailable
                 // yeah calling it early so the switch is unnoticeable
-                if (!_isVideoPrepared)
+                if (!IsVideoPrepared)
                 {
                     for (int i = 0; i < ____monitors.Length; ++i)
                     {
@@ -134,7 +135,7 @@ public class TitleScreenVideo
                 }
                 break;
             case AdvertiseProcess.AdvertiseSequence.TransitionOut:
-                if (_isVideoPrepared)
+                if (IsVideoPrepared)
                 {
                     for (int i = 0; i < ____monitors.Length; ++i)
                     {
@@ -193,7 +194,7 @@ public class TitleScreenVideo
         }
 
         // Resets status
-        _isVideoPrepared = false;
+        Interlocked.Exchange(ref _videoPreparedCount, 0);
         _isAudioPrepared = false;
         _disabledCompoments = [[], []];
     }
@@ -211,7 +212,7 @@ public class TitleScreenVideo
     [HarmonyPatch(typeof(AdvertiseMonitor), "IsTitleAnimationEnd")]
     public static bool Monitor_IsTitleAnimationEnd_Prefix(ref bool __result, int ___monitorIndex)
     {
-        if (!_isVideoPrepared)
+        if (!IsVideoPrepared)
             return true;
 
         __result = !_videoPlayers[___monitorIndex].isPlaying && _videoPlayers[___monitorIndex].frame >= (long) _videoPlayers[___monitorIndex].frameCount - 1;
