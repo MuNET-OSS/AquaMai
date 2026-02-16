@@ -181,8 +181,6 @@ public class TitleScreenVideo
 
             if (_videoPlayers[i] != null)
             {
-                _videoPlayers[i].prepareCompleted -= null;
-                _videoPlayers[i].errorReceived -= null;
                 UnityEngine.Object.Destroy(_videoPlayers[i]);
                 _videoPlayers[i] = null;
             }
