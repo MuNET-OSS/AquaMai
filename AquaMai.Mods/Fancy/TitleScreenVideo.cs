@@ -27,6 +27,7 @@ public class TitleScreenVideo
 
     private static GameObject[] _movieObjects = new GameObject[2];
     private static VideoPlayer[] _videoPlayers = new VideoPlayer[2];
+    private static Material[] _videoMaterials = new Material[2];
 
     private static List<string>[] _disabledCompoments = [[], []];
 
@@ -99,8 +100,8 @@ public class TitleScreenVideo
 
             _videoPlayers[i].Prepare();
 
-            var movieMaterial = new Material(Shader.Find("Sprites/Default"));
-            movieSprite.material = movieMaterial;
+            _videoMaterials[i] = new Material(Shader.Find("Sprites/Default"));
+            movieSprite.material = _videoMaterials[i];
             _videoPlayers[i].targetMaterialRenderer = movieSprite;
         }
 
@@ -172,6 +173,12 @@ public class TitleScreenVideo
     {
         for (int i = 0; i < ____monitors.Length; ++i)
         {
+            if (_videoMaterials[i] != null)
+            {
+                UnityEngine.Object.Destroy(_videoMaterials[i]);
+                _videoMaterials[i] = null;
+            }
+
             if (_videoPlayers[i] != null)
             {
                 _videoPlayers[i].prepareCompleted -= null;
