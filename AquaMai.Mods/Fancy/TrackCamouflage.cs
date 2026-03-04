@@ -1,4 +1,4 @@
-﻿using AquaMai.Config.Attributes;
+using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
 using MAI2.Util;
@@ -20,6 +20,7 @@ using Tomlet;
 using UI.DaisyChainList;
 using UnityEngine;
 using UnityEngine.UI;
+using Tomlet.Models;
 
 namespace AquaMai.Mods.Fancy;
 
@@ -70,21 +71,8 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
             try
             {
                 var parsedDoc = TomlParser.ParseFile(defFilePath);
-                parsedData = new CamouflageInfo();
-
-                if (parsedDoc.ContainsKey("Name"))
-                {
-                    var str = parsedDoc.GetString("Name");
-                    if (!string.IsNullOrWhiteSpace(str))
-                        parsedData.Name = str;
-                }
-
-                if (parsedDoc.ContainsKey("Artist"))
-                {
-                    var str = parsedDoc.GetString("Artist");
-                    if (!string.IsNullOrWhiteSpace(str))
-                        parsedData.Artist = str;
-                }
+                parsedData = new CamouflageInfo(parsedDoc);
+                parsedData.Load();
             }
             catch (Exception e)
             {
@@ -103,9 +91,7 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 
                 try
                 {
-                    var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-                    texture.LoadImage(File.ReadAllBytes(jacketFilePath));
-                    parsedData.JacketTexture = texture;
+                    parsedData.LoadJacketTexture(jacketFilePath);
                     break;
                 }
                 catch (Exception e)
@@ -388,11 +374,39 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         return true;
     }
 
-    public class CamouflageInfo
+    public class CamouflageInfo(TomlDocument source)
     {
-        public string Name { get; set; } = "???";
-        public string Artist { get; set; } = "???";
-        public Texture2D JacketTexture { get; set; } = null;
+        private readonly TomlDocument _source = source;
+
+        private string _name;
+        private string _artist;
+        private Texture2D _jacket;
+
+        public string Name => _name;
+        public string Artist => _artist;
+        public Texture2D JacketTexture => _jacket;
+
+        public void Load()
+        {
+            _name = LoadString("Name") ?? "???";
+            _artist = LoadString("Artist") ?? "???";
+        }
+
+        public void LoadJacketTexture(string path)
+        {
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            texture.LoadImage(File.ReadAllBytes(path));
+            _jacket = texture;
+        }
+
+        private string LoadString(string key)
+        {
+            if (!_source.ContainsKey(key))
+                return null;
+
+            var str = _source.GetString(key);
+            return !string.IsNullOrWhiteSpace(str) ? str : null;
+        }
     }
     #endregion
 }
