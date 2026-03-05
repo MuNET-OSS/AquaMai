@@ -21,6 +21,7 @@ using UI.DaisyChainList;
 using UnityEngine;
 using UnityEngine.UI;
 using Tomlet.Models;
+using Manager.MaiStudio;
 
 namespace AquaMai.Mods.Fancy;
 
@@ -119,7 +120,7 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         card.SetMusicData(
             info.Name,
             info.Artist,
-            musicSelectData.ScoreData[difficulty].notesDesigner.str,
+            info.NoteDesigner ?? musicSelectData.ScoreData[difficulty].notesDesigner.str,
             musicSelectData.MusicData.bpm,
             jacketTexture,
             difficulty);
@@ -316,6 +317,20 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
     }
     #endregion
 
+    #region TimelineRoot Patch
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(TimelineRoot), "Initialise")]
+    [EnableGameVersion(23500)]
+    public static void InjectTimelineRootInitialise(MusicData musicData, CustomTextScroll ____noteDesignerName_Text)
+    {
+        if (!CamouflageCheck(musicData.GetID(), out CamouflageInfo info))
+            return;
+
+        if (info.NoteDesigner != null)
+            ____noteDesignerName_Text.SetData(info.NoteDesigner);
+    }
+    #endregion
+
     #region AssetManager Patch
     // Most parts of the game using this method to get jackets except others mentioned from above so I think that'll do the rest
 
@@ -380,16 +395,21 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 
         private string _name;
         private string _artist;
+        private bool _hideNoteDesigner;
+        private string _noteDesigner;
         private Texture2D _jacket;
 
         public string Name => _name;
         public string Artist => _artist;
+        public string NoteDesigner => _hideNoteDesigner ? _noteDesigner : null;
         public Texture2D JacketTexture => _jacket;
 
         public void Load()
         {
             _name = LoadString("Name") ?? "???";
             _artist = LoadString("Artist") ?? "???";
+            _hideNoteDesigner = LoadBoolean("HideNoteDesigner");
+            _noteDesigner = LoadString("NoteDesigner") ?? "-";
         }
 
         public void LoadJacketTexture(string path)
@@ -406,6 +426,14 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 
             var str = _source.GetString(key);
             return !string.IsNullOrWhiteSpace(str) ? str : null;
+        }
+
+        private bool LoadBoolean(string key)
+        {
+            if (!_source.ContainsKey(key))
+                return false;
+
+            return _source.GetBoolean(key);
         }
     }
     #endregion
