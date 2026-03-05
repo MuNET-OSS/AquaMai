@@ -1,4 +1,4 @@
-﻿using AquaMai.Config.Attributes;
+using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
 using MAI2.Util;
@@ -20,6 +20,8 @@ using Tomlet;
 using UI.DaisyChainList;
 using UnityEngine;
 using UnityEngine.UI;
+using Tomlet.Models;
+using Manager.MaiStudio;
 
 namespace AquaMai.Mods.Fancy;
 
@@ -38,6 +40,11 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 曲目伪装信息的文件名为 <曲目ID>.toml，TOML 文档可填入伪装后的曲目名（Name）和曲师（Artist）
 伪装封面的文件名为 <曲目ID>_jacket，支持 jpg 和 png 格式")]
     private static readonly string CamouflageDir = "LocalAssets/Camouflages";
+
+    [ConfigEntry(
+        en: "Always enable track camouflage, no matter if player already played the track or not",
+        zh: "无视玩家游玩记录检测，始终显示伪装后的曲目信息")]
+    private static readonly bool AlwaysShowCamouflage = false;
 
     private static readonly string[] AllowedImageExts = [".jpg", ".jpeg", ".png"];
 
@@ -70,21 +77,8 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
             try
             {
                 var parsedDoc = TomlParser.ParseFile(defFilePath);
-                parsedData = new CamouflageInfo();
-
-                if (parsedDoc.ContainsKey("Name"))
-                {
-                    var str = parsedDoc.GetString("Name");
-                    if (!string.IsNullOrWhiteSpace(str))
-                        parsedData.Name = str;
-                }
-
-                if (parsedDoc.ContainsKey("Artist"))
-                {
-                    var str = parsedDoc.GetString("Artist");
-                    if (!string.IsNullOrWhiteSpace(str))
-                        parsedData.Artist = str;
-                }
+                parsedData = new CamouflageInfo(parsedDoc);
+                parsedData.Load();
             }
             catch (Exception e)
             {
@@ -103,9 +97,7 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 
                 try
                 {
-                    var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-                    texture.LoadImage(File.ReadAllBytes(jacketFilePath));
-                    parsedData.JacketTexture = texture;
+                    parsedData.LoadJacketTexture(jacketFilePath);
                     break;
                 }
                 catch (Exception e)
@@ -133,7 +125,7 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         card.SetMusicData(
             info.Name,
             info.Artist,
-            musicSelectData.ScoreData[difficulty].notesDesigner.str,
+            info.NoteDesigner ?? musicSelectData.ScoreData[difficulty].notesDesigner.str,
             musicSelectData.MusicData.bpm,
             jacketTexture,
             difficulty);
@@ -330,6 +322,20 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
     }
     #endregion
 
+    #region TimelineRoot Patch
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(TimelineRoot), "Initialise")]
+    [EnableGameVersion(23500)]
+    public static void InjectTimelineRootInitialise(MusicData musicData, CustomTextScroll ____noteDesignerName_Text)
+    {
+        if (!CamouflageCheck(musicData.GetID(), out CamouflageInfo info))
+            return;
+
+        if (info.NoteDesigner != null)
+            ____noteDesignerName_Text.SetData(info.NoteDesigner);
+    }
+    #endregion
+
     #region AssetManager Patch
     // Most parts of the game using this method to get jackets except others mentioned from above so I think that'll do the rest
 
@@ -371,16 +377,19 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
             return false;
 
         // Check if any player already played the track
-        for (int i = 0; i < 4; ++i)
+        if (!AlwaysShowCamouflage)
         {
-            var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
-            if (playerData != null)
+            for (int i = 0; i < 4; ++i)
             {
-                for (int j = 0; j < 6; ++j)
+                var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
+                if (playerData != null)
                 {
-                    playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
-                    if (musicScore != null)
-                        return false;
+                    for (int j = 0; j < 6; ++j)
+                    {
+                        playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
+                        if (musicScore != null)
+                            return false;
+                    }
                 }
             }
         }
@@ -388,11 +397,52 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         return true;
     }
 
-    public class CamouflageInfo
+    public class CamouflageInfo(TomlDocument source)
     {
-        public string Name { get; set; } = "???";
-        public string Artist { get; set; } = "???";
-        public Texture2D JacketTexture { get; set; } = null;
+        private readonly TomlDocument _source = source;
+
+        private string _name;
+        private string _artist;
+        private bool _hideNoteDesigner;
+        private string _noteDesigner;
+        private Texture2D _jacket;
+
+        public string Name => _name;
+        public string Artist => _artist;
+        public string NoteDesigner => _hideNoteDesigner ? _noteDesigner : null;
+        public Texture2D JacketTexture => _jacket;
+
+        public void Load()
+        {
+            _name = LoadString("Name") ?? "???";
+            _artist = LoadString("Artist") ?? "???";
+            _hideNoteDesigner = LoadBoolean("HideNoteDesigner");
+            _noteDesigner = LoadString("NoteDesigner") ?? "-";
+        }
+
+        public void LoadJacketTexture(string path)
+        {
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            texture.LoadImage(File.ReadAllBytes(path));
+            _jacket = texture;
+        }
+
+        private string LoadString(string key)
+        {
+            if (!_source.ContainsKey(key))
+                return null;
+
+            var str = _source.GetString(key);
+            return !string.IsNullOrWhiteSpace(str) ? str : null;
+        }
+
+        private bool LoadBoolean(string key)
+        {
+            if (!_source.ContainsKey(key))
+                return false;
+
+            return _source.GetBoolean(key);
+        }
     }
     #endregion
 }
