@@ -4,17 +4,24 @@ using System.Net;
 using System.Reflection;
 using MuMod.Utils;
 using MelonLoader;
+using System.Runtime.InteropServices;
 
-[assembly: MelonInfo(typeof(MuMod.Main), "MuMod Loader", MuMod.Main.LoaderVersion, "MuNET Team")]
 
 namespace MuMod;
 
 public class Main : MelonMod
 {
     public const string LoaderVersion = "1.0.0";
+    public const string Description = "MuMod Loader";
+    public const string Author = "MuNET Team";
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleOutputCP(uint wCodePageID);
 
     public override void OnEarlyInitializeMelon()
     {
+        SetConsoleOutputCP(65001);
+
         MelonLogger.Msg("Loading version information...");
         var versionInfo = VersionApi.GetVersionInfo();
         MelonLogger.Msg($"Loading {versionInfo.version} Build {versionInfo.createdAt}...");
