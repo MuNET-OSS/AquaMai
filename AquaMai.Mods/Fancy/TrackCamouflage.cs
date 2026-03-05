@@ -41,6 +41,11 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 伪装封面的文件名为 <曲目ID>_jacket，支持 jpg 和 png 格式")]
     private static readonly string CamouflageDir = "LocalAssets/Camouflages";
 
+    [ConfigEntry(
+        en: "Always enable track camouflage, no matter if player already played the track or not",
+        zh: "无视玩家游玩记录检测，始终显示伪装后的曲目信息")]
+    private static readonly bool AlwaysShowCamouflage = false;
+
     private static readonly string[] AllowedImageExts = [".jpg", ".jpeg", ".png"];
 
     private static bool _initialized = false;
@@ -372,16 +377,19 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
             return false;
 
         // Check if any player already played the track
-        for (int i = 0; i < 4; ++i)
+        if (!AlwaysShowCamouflage)
         {
-            var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
-            if (playerData != null)
+            for (int i = 0; i < 4; ++i)
             {
-                for (int j = 0; j < 6; ++j)
+                var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
+                if (playerData != null)
                 {
-                    playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
-                    if (musicScore != null)
-                        return false;
+                    for (int j = 0; j < 6; ++j)
+                    {
+                        playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
+                        if (musicScore != null)
+                            return false;
+                    }
                 }
             }
         }
