@@ -36,6 +36,7 @@
     <Reference Include="mscorlib" />
     <Reference Include="0Harmony" />
     <Reference Include="MelonLoader" />
+    <PackageReference Include="Samboy063.Tomlet" Version="5.4.0" />
   </ItemGroup>
 
   <ItemGroup>
