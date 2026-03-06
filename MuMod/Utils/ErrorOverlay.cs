@@ -12,6 +12,8 @@ public static class ErrorOverlay
     public static string ErrorMessage { get; private set; }
     public static bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
+    private static GUIStyle _errorStyle;
+
     public static void SetError(string message)
     {
         ErrorMessage = message;
@@ -29,14 +31,17 @@ public static class ErrorOverlay
     {
         if (!HasError) return;
 
-        var style = new GUIStyle(GUI.skin.label)
+        if (_errorStyle == null)
         {
-            fontSize = 25,
-            alignment = TextAnchor.UpperLeft,
-            wordWrap = true,
-        };
+            _errorStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 25,
+                alignment = TextAnchor.UpperLeft,
+                wordWrap = true,
+            };
+        }
 
-        GUI.Label(new Rect(50, 50, Screen.width / 2f, Screen.height), ErrorMessage, style);
+        GUI.Label(new Rect(50, 50, Screen.width / 2f, Screen.height), ErrorMessage, _errorStyle);
     }
 
     [HarmonyLib.HarmonyPatch(typeof(GameMainObject), "Awake")]

@@ -64,7 +64,7 @@ public static class VersionApi
 
         cosThread.Start();
         cfThread.Start();
-        done.WaitOne();
+        done.WaitOne(TimeSpan.FromSeconds(15));
 
         if (result == null)
         {

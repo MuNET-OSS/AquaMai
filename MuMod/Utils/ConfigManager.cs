@@ -52,6 +52,15 @@ public static class ConfigManager
     public static string GetChannelType()
     {
         var channel = (_config.Channel ?? "slow").Trim().ToLowerInvariant();
-        return channel == "slow" ? "slow" : "ci";
+        switch (channel)
+        {
+            case "fast":
+                return "ci";
+            case "slow":
+                return "slow";
+            default:
+                MelonLogger.Warning($"Unknown channel '{_config.Channel}' in MuMod.toml, defaulting to 'slow'.");
+                return "slow";
+        }
     }
 }

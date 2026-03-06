@@ -63,7 +63,7 @@ public static class AquaMaiSignatureV2
         const int pointOffset = 24;
         const int pointLength = 133;
         
-        if (spki.Length < pointOffset + pointLength)
+        if (spki.Length < pointOffset + 1 + pointLength)
             throw new ArgumentException("Invalid SPKI length");
         
         var point = new byte[pointLength];
@@ -146,7 +146,8 @@ public static class AquaMaiSignatureV2
             return null;
         }
 
-        var block = data.Skip(data.Length - size).ToArray();
+        var block = new byte[size];
+        Array.Copy(data, data.Length - size, block, 0, size);
         IntPtr ptr = Marshal.AllocHGlobal(size);
         try
         {
@@ -202,17 +203,21 @@ public static class AquaMaiSignatureV2
     public static VerifyResult VerifySignature(byte[] data)
     {
         var block = parseFromBytes(data);
+        if (block == null)
+        {
+            return new VerifyResult(VerifyStatus.NotFound, PubKeyId.None);
+        }
+
         if (!pubKeys.TryGetValue(block.Value.KeyId, out var pubKey))
         {
             return new VerifyResult(VerifyStatus.InvalidKeyId, block.Value.KeyId);
         }
 
         var size = Marshal.SizeOf<AquaMaiSignatureBlock>();
-        var dataToVerify = data.SkipLast(size).ToArray();
         byte[] hash;
         using (var sha256 = SHA256.Create())
         {
-            hash = sha256.ComputeHash(dataToVerify);
+            hash = sha256.ComputeHash(data, 0, data.Length - size);
         }
         var isValid = VerifyWithCng(pubKey, hash, block.Value.Signature);
         return new VerifyResult(isValid ? VerifyStatus.Valid : VerifyStatus.InvalidSignature, block.Value.KeyId);
