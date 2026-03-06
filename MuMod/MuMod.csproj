@@ -35,7 +35,12 @@
   <ItemGroup>
     <Reference Include="mscorlib" />
     <Reference Include="0Harmony" />
+    <Reference Include="Assembly-CSharp" />
     <Reference Include="MelonLoader" />
+    <Reference Include="UnityEngine" />
+    <Reference Include="UnityEngine.CoreModule" />
+    <Reference Include="UnityEngine.IMGUIModule" />
+    <Reference Include="UnityEngine.TextRenderingModule" />
     <PackageReference Include="Samboy063.Tomlet" Version="5.4.0" />
   </ItemGroup>
 

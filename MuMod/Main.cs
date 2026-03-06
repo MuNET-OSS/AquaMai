@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using MuMod.Utils;
+using MuMod.Models;
 using MelonLoader;
 using System.Runtime.InteropServices;
 
@@ -23,55 +24,124 @@ public class Main : MelonMod
     {
         SetConsoleOutputCP(65001);
 
-        // Load config from mumod.toml
         ConfigManager.Load();
         var channelType = ConfigManager.GetChannelType();
 
-        // Fetch version info with dual-source racing
+        byte[] data;
+
         var versionInfo = VersionApi.GetVersionInfo(channelType);
+
+        if (versionInfo != null)
+        {
+            data = LoadWithVersionInfo(versionInfo);
+        }
+        else
+        {
+            // API 不可用，尝试从缓存加载
+            MelonLogger.Warning("Version API unavailable, trying cache...");
+            data = TryLoadFromCache();
+
+            if (data != null)
+            {
+                MelonLogger.Msg("API unavailable, loaded from cache.");
+            }
+            else
+            {
+                ErrorOverlay.SetError(
+                    "MuMod: 无法获取版本信息，且本地无有效缓存\n" +
+                    "请检查网络连接后重试\n\n" +
+                    "MuMod: Failed to fetch version info and no valid cache available\n" +
+                    "Please check your network connection and try again");
+                return;
+            }
+        }
+
+        if (data == null) return;
+
+        LoadAssembly(data);
+    }
+
+    /// <summary>
+    /// 有版本信息时的加载流程：先查缓存，缓存没有或版本不匹配则下载
+    /// </summary>
+    private byte[] LoadWithVersionInfo(AquaMaiVersionInfo versionInfo)
+    {
         MelonLogger.Msg($"Latest version: {versionInfo.version} (type: {versionInfo.type})");
 
-        // Try loading from cache first
         var data = TryLoadFromCache(versionInfo.version);
 
         if (data != null)
         {
             MelonLogger.Msg("Loaded from cache.");
+            return data;
         }
-        else
+
+        // 下载
+        try
         {
-            // Download from network, selecting source based on racing result
             var downloadUrl = VersionApi.GetDownloadUrl(versionInfo);
             var sourceName = VersionApi.FastestSource == PreferredSource.Cos ? "COS" : "Cloudflare";
             MelonLogger.Msg($"Downloading {versionInfo.version} from {sourceName}...");
 
             using var client = new WebClient();
             data = client.DownloadData(downloadUrl);
-
-            if (AquaMaiSignatureV2.VerifySignature(data).Status != AquaMaiSignatureV2.VerifyStatus.Valid)
-            {
-                MelonLogger.Error("Invalid signature on downloaded data.");
-                return;
-            }
-
-            MelonLogger.Msg("Signature verified.");
-
-            // Try to cache the downloaded data
-            TrySaveToCache(data);
+        }
+        catch (Exception ex)
+        {
+            ErrorOverlay.SetError(
+                $"MuMod: 下载失败\n{ex.Message}\n\n" +
+                $"MuMod: Failed to download\n{ex.Message}");
+            return null;
         }
 
-        var asm = Assembly.Load(data);
-        var masm = MelonAssembly.LoadMelonAssembly(asm.GetName().Name, asm, true);
-        foreach (var melon in masm.LoadedMelons)
+        if (AquaMaiSignatureV2.VerifySignature(data).Status != AquaMaiSignatureV2.VerifyStatus.Valid)
         {
-            melon.Register();
+            ErrorOverlay.SetError(
+                "MuMod: 签名校验失败，文件可能已损坏\n\n" +
+                "MuMod: Invalid signature, file may be corrupted or tampered");
+            return null;
+        }
+
+        MelonLogger.Msg("Signature verified.");
+
+        // 写入缓存
+        TrySaveToCache(data);
+        return data;
+    }
+
+    private void LoadAssembly(byte[] data)
+    {
+        try
+        {
+            var asm = Assembly.Load(data);
+            var masm = MelonAssembly.LoadMelonAssembly(asm.GetName().Name, asm, true);
+            foreach (var melon in masm.LoadedMelons)
+            {
+                melon.Register();
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorOverlay.SetError(
+                $"MuMod: 加载程序集失败\n{ex.Message}\n\n" +
+                $"MuMod: Failed to load assembly\n{ex.Message}");
         }
     }
 
-    /// <summary>
-    /// Normalizes a version string for comparison by stripping the "v" prefix.
-    /// API returns "v1.7.5-19-g0d4b39e", DLL embeds "1.7.5-19-g0d4b39e".
-    /// </summary>
+    public override void OnInitializeMelon()
+    {
+        if (ErrorOverlay.HasError)
+        {
+            ErrorOverlay.BlockGame(HarmonyInstance);
+        }
+    }
+
+    public override void OnGUI()
+    {
+        ErrorOverlay.Render();
+    }
+
+    // 去掉版本号前面的 "v" 前缀，方便比较
     private static string NormalizeVersion(string version)
     {
         if (version != null && version.StartsWith("v", StringComparison.OrdinalIgnoreCase))
@@ -82,11 +152,9 @@ public class Main : MelonMod
     }
 
     /// <summary>
-    /// Tries to load DLL data from cache.
-    /// Reads the version from the cached DLL's FileVersionInfo and compares with latest.
-    /// Returns null if cache is unavailable, version mismatch, or signature verification fails.
+    /// 从缓存加载 DLL。指定 expectedVersion 时会校验版本是否匹配，不指定则只校验签名。
     /// </summary>
-    private byte[] TryLoadFromCache(string latestVersion)
+    private byte[] TryLoadFromCache(string expectedVersion = null)
     {
         try
         {
@@ -97,15 +165,18 @@ public class Main : MelonMod
                 return null;
             }
 
-            // Read version directly from the cached DLL's embedded file version info
-            var fileInfo = FileVersionInfo.GetVersionInfo(cachePath);
-            var cachedVersion = fileInfo.ProductVersion;
-
-            if (NormalizeVersion(cachedVersion) != NormalizeVersion(latestVersion))
+            if (expectedVersion != null)
             {
-                MelonLogger.Msg($"Cache version mismatch (cached: {cachedVersion}, latest: {latestVersion}), will re-download.");
-                DeleteCache(cachePath);
-                return null;
+                // 读缓存 DLL 的版本号比对
+                var fileInfo = FileVersionInfo.GetVersionInfo(cachePath);
+                var cachedVersion = fileInfo.ProductVersion;
+
+                if (NormalizeVersion(cachedVersion) != NormalizeVersion(expectedVersion))
+                {
+                    MelonLogger.Msg($"Cache version mismatch (cached: {cachedVersion}, latest: {expectedVersion}), will re-download.");
+                    DeleteCache(cachePath);
+                    return null;
+                }
             }
 
             var data = File.ReadAllBytes(cachePath);
@@ -126,9 +197,6 @@ public class Main : MelonMod
         }
     }
 
-    /// <summary>
-    /// Tries to save DLL data to cache. Silently fails if the path is not writable.
-    /// </summary>
     private void TrySaveToCache(byte[] data)
     {
         try
@@ -147,13 +215,9 @@ public class Main : MelonMod
         catch (Exception ex)
         {
             MelonLogger.Warning($"Failed to write cache: {ex.Message}");
-            // Continue without caching - this is a non-critical failure
         }
     }
 
-    /// <summary>
-    /// Deletes cache file, silently ignoring errors.
-    /// </summary>
     private static void DeleteCache(string cachePath)
     {
         try { File.Delete(cachePath); } catch { }

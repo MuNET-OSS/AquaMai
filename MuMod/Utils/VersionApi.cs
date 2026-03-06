@@ -19,16 +19,10 @@ public static class VersionApi
     private const string CosUrl = "https://munet-version-config-1251600285.cos.ap-shanghai.myqcloud.com/aquamai.json";
     private const string CfUrl = "https://aquamai-version-config.mumur.net/api/config";
 
-    /// <summary>
-    /// The source that responded faster during version info fetch.
-    /// Used to decide which download URL to use (url=COS, url2=CF).
-    /// </summary>
+    // 拉取版本信息时响应更快的源，用于决定后续下载走哪个 URL
     public static PreferredSource FastestSource { get; private set; } = PreferredSource.Cos;
 
-    /// <summary>
-    /// Fetches version info from both COS and CF simultaneously using threads,
-    /// uses whichever responds first. Remembers which source was faster.
-    /// </summary>
+    // 同时请求 COS 和 CF 两个源，谁先返回用谁
     public static AquaMaiVersionInfo GetVersionInfo(string channelType)
     {
         string result = null;
@@ -74,25 +68,31 @@ public static class VersionApi
 
         if (result == null)
         {
-            throw new Exception("Failed to fetch version info from both COS and Cloudflare.");
+            MelonLogger.Warning("Failed to fetch version info from both COS and Cloudflare.");
+            return null;
         }
 
         FastestSource = source;
 
-        JSON.MakeInto<AquaMaiVersionInfo[]>(JSON.Load(result), out var items);
-        var info = items.FirstOrDefault(it => it.type == channelType);
-
-        if (info == null)
+        try
         {
-            throw new Exception($"No version info found for channel type '{channelType}'.");
-        }
+            JSON.MakeInto<AquaMaiVersionInfo[]>(JSON.Load(result), out var items);
+            var info = items.FirstOrDefault(it => it.type == channelType);
 
-        return info;
+            if (info == null)
+            {
+                MelonLogger.Warning($"No version info found for channel type '{channelType}'.");
+            }
+
+            return info;
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Warning($"Failed to parse version info: {ex.Message}");
+            return null;
+        }
     }
 
-    /// <summary>
-    /// Returns the download URL based on which source (COS/CF) was faster during version info fetch.
-    /// </summary>
     public static string GetDownloadUrl(AquaMaiVersionInfo info)
     {
         if (FastestSource == PreferredSource.Cf && !string.IsNullOrEmpty(info.url2))

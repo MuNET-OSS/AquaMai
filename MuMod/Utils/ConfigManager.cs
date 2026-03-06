@@ -34,12 +34,10 @@ public static class ConfigManager
         }
     }
 
-    /// <summary>
-    /// Resolves the cache path to an absolute path based on the game directory.
-    /// </summary>
+    // 将配置中的相对路径解析为基于游戏目录的绝对路径
     public static string GetCachePath()
     {
-        var path = _config.cache_path;
+        var path = _config.CachePath;
         if (string.IsNullOrWhiteSpace(path))
         {
             path = @"LocalAssets\MuMod.cache";
@@ -50,13 +48,10 @@ public static class ConfigManager
             : Path.Combine(Environment.CurrentDirectory, expanded);
     }
 
-    /// <summary>
-    /// Maps the user-facing channel name to the internal type string in the version API.
-    /// "fast" -> "ci", "slow" -> "slow"
-    /// </summary>
+    // 将用户配置的 channel 名映射到 API 用的 type：fast → ci, slow → slow
     public static string GetChannelType()
     {
-        var channel = (_config.channel ?? "slow").Trim().ToLowerInvariant();
+        var channel = (_config.Channel ?? "slow").Trim().ToLowerInvariant();
         return channel == "slow" ? "slow" : "ci";
     }
 }
