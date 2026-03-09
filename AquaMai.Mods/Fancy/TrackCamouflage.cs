@@ -39,12 +39,12 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         zh: @"曲目伪装信息和封面文件夹的路径
 曲目伪装信息的文件名为 <曲目ID>.toml，TOML 文档可填入伪装后的曲目名（Name）和曲师（Artist）
 伪装封面的文件名为 <曲目ID>_jacket，支持 jpg 和 png 格式")]
-    private static readonly string CamouflageDir = "LocalAssets/Camouflages";
+    public static readonly string CamouflageDir = "LocalAssets/Camouflages";
 
     [ConfigEntry(
         en: "Always enable track camouflage, no matter if player already played the track or not",
         zh: "无视玩家游玩记录检测，始终显示伪装后的曲目信息")]
-    private static readonly bool AlwaysShowCamouflage = false;
+    public static readonly bool AlwaysShowCamouflage = false;
 
     private static readonly string[] AllowedImageExts = [".jpg", ".jpeg", ".png"];
 
