@@ -26,6 +26,11 @@ public class TitleScreenVideo
         zh: "标题视音频文件路径，不包括文件后缀名（视频为 mp4 格式，音频为 acb/awb 格式）")]
     public static readonly string VideoPath = "LocalAssets/DX_title";
 
+    [ConfigEntry(
+        en: "Skip the SEGA / All.Net logo when custom title video file is loaded",
+        zh: "自定标题视频成功加载后，跳过 SEGA / All.Net 标志动画")]
+    public static readonly bool SkipLogo = false;
+
     private static GameObject[] _movieObjects = new GameObject[2];
     private static VideoPlayer[] _videoPlayers = new VideoPlayer[2];
     private static Material[] _videoMaterials = new Material[2];
@@ -115,44 +120,22 @@ public class TitleScreenVideo
     [HarmonyPatch(typeof(AdvertiseProcess), "OnUpdate")]
     public static void OnUpdate_Postfix(AdvertiseProcess.AdvertiseSequence ____state, AdvertiseMonitor[] ____monitors)
     {
-        switch (____state)
+        if (____state == AdvertiseProcess.AdvertiseSequence.TransitionOut && IsVideoPrepared)
         {
-            case AdvertiseProcess.AdvertiseSequence.Logo:
-                // Re-enable original title screen elements if the video is unavailable
-                // yeah calling it early so the switch is unnoticeable
-                if (!IsVideoPrepared)
+            for (int i = 0; i < ____monitors.Length; ++i)
+            {
+                // Stop yelling "maimai deluxe" I'm tired to hearing it
+                SoundManager.StopVoice(i);
+
+                _videoPlayers[i].Play();
+
+                if (_isAudioPrepared)
                 {
-                    for (int i = 0; i < ____monitors.Length; ++i)
-                    {
-                        _movieObjects[i].SetActive(false);
-
-                        var titleLoop = ____monitors[i].transform.Find("Canvas/Main/UI_ADV_Title/Null_all/TitleLoop");
-                        foreach (string name in _disabledCompoments[i])
-                            titleLoop.Find(name).gameObject.SetActive(true);
-
-                        _disabledCompoments[i] = [];
-                    }
+                    // Stop game's original title music and plays our own
+                    SoundManager.StopJingle(i);
+                    SoundManager.StartMusic();
                 }
-                break;
-            case AdvertiseProcess.AdvertiseSequence.TransitionOut:
-                if (IsVideoPrepared)
-                {
-                    for (int i = 0; i < ____monitors.Length; ++i)
-                    {
-                        // Stop yelling "maimai deluxe" I'm tired to hearing it
-                        SoundManager.StopVoice(i);
-
-                        _videoPlayers[i].Play();
-
-                        if (_isAudioPrepared)
-                        {
-                            // Stop game's original title music and plays our own
-                            SoundManager.StopJingle(i);
-                            SoundManager.StartMusic();
-                        }
-                    }
-                }
-                break;
+            }
         }
     }
 
@@ -216,6 +199,44 @@ public class TitleScreenVideo
             return true;
 
         __result = !_videoPlayers[___monitorIndex].isPlaying && _videoPlayers[___monitorIndex].frame >= (long) _videoPlayers[___monitorIndex].frameCount - 1;
+        return false;
+    }
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(AdvertiseMonitor), "PlayLogo")]
+    public static bool Monitor_PlayLogo_Prefix(int ___monitorIndex, GameObject ____eventModeObject, CanvasGroup ___Main)
+    {
+        if (!IsVideoPrepared)
+        {
+            // Re-enable original title screen elements if the video is unavailable
+            // doing this early so the transition will be less noticable
+            _movieObjects[___monitorIndex].SetActive(false);
+
+            var titleLoop = ___Main.transform.Find("UI_ADV_Title/Null_all/TitleLoop");
+            foreach (string name in _disabledCompoments[___monitorIndex])
+                titleLoop.Find(name).gameObject.SetActive(true);
+
+            _disabledCompoments[___monitorIndex] = [];
+
+            return true;
+        }
+
+        if (!SkipLogo)
+            return true;
+
+        ____eventModeObject.SetActive(GameManager.IsEventMode);
+        ___Main.transform.Find("UI_ADV_SegaAllNet").gameObject.SetActive(false);
+        return false;
+    }
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(AdvertiseMonitor), "IsLogoAnimationEnd")]
+    public static bool Monitor_IsLogoAnimationEnd_Prefix(ref bool __result)
+    {
+        if (!IsVideoPrepared || !SkipLogo)
+            return true;
+
+        __result = true;
         return false;
     }
 }
