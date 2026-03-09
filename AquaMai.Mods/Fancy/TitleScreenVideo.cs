@@ -23,8 +23,8 @@ public class TitleScreenVideo
 {
     [ConfigEntry(
         en: "Title Video / Audio File Path (without file extensions, mp4 video and acb/awb audio are supported)",
-        zh: "标题视音频文件路径，不包括文件后缀名（视频为 mp4 格式，音频为 acb/awb 格式")]
-    private static readonly string VideoPath = "LocalAssets/DX_title";
+        zh: "标题视音频文件路径，不包括文件后缀名（视频为 mp4 格式，音频为 acb/awb 格式）")]
+    public static readonly string VideoPath = "LocalAssets/DX_title";
 
     private static GameObject[] _movieObjects = new GameObject[2];
     private static VideoPlayer[] _videoPlayers = new VideoPlayer[2];
