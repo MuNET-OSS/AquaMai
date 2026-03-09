@@ -25,7 +25,7 @@ public class NextTrackTips
     [ConfigEntry(
         zh: "随机提示图目录，图像格式为 png",
         en: "Tips image directory, only png images are supported")]
-    private static readonly string TipsDirectory = "LocalAssets/Tips";
+    public static readonly string TipsDirectory = "LocalAssets/Tips";
 
     private static readonly List<Sprite> _nextTrackSprites = [];
 
