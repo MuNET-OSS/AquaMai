@@ -31,6 +31,11 @@ public class TitleScreenVideo
         zh: "自定标题视频成功加载后，跳过 SEGA / All.Net 标志动画")]
     public static readonly bool SkipLogo = false;
 
+    [ConfigEntry(
+        en: "Hide copyright information on the bottom of the title screen",
+        zh: "隐藏标题画面底部的版权信息")]
+    public static readonly bool HideCopyright = false;
+
     private static GameObject[] _movieObjects = new GameObject[2];
     private static VideoPlayer[] _videoPlayers = new VideoPlayer[2];
     private static Material[] _videoMaterials = new Material[2];
@@ -55,6 +60,10 @@ public class TitleScreenVideo
             // Disable fade out cover on cir (and maybe future version?)
             if (GameInfo.GameVersion >= 26000)
                 monitor.transform.Find("Canvas/Main/UI_ADV_Title/Null_all/out_cover")?.gameObject.SetActive(false);
+
+            // Hide copyright information
+            if (HideCopyright)
+                monitor.transform.Find("Canvas/Main/UI_ADV_Title/Null_all/Licence").gameObject.SetActive(false);
 
             var titleLoop = monitor.transform.Find("Canvas/Main/UI_ADV_Title/Null_all/TitleLoop");
 
