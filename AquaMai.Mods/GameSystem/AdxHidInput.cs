@@ -234,6 +234,7 @@ public class AdxHidInput
         if (!keyEnabled) return;
         JvsSwitchHook.RegisterButtonChecker(IsButtonPushed);
         JvsSwitchHook.RegisterAuxiliaryStateProvider(GetAuxiliaryState);
+        JvsSwitchHook.RegisterCustomFnStateProvider(GetCustomFnState);
     }
 
     private static bool IsButtonPushed(int playerNo, int buttonIndex1To8)
@@ -300,6 +301,35 @@ public class AdxHidInput
             }
         }
         return auxiliaryState;
+    }
+
+    private static CustomFnState GetCustomFnState()
+    {
+        var result = new CustomFnState();
+        IOKeyMap[] keyMaps = [button1, button2, button3, button4];
+        for (int i = 0; i < 4; i++)
+        {
+            var keyIndex = 10 + i;
+            var is1PPushed = inputLatch[0].ReadBit(keyIndex);
+            var is2PPushed = inputLatch[1].ReadBit(keyIndex);
+            var isPushed = is1PPushed || is2PPushed;
+            switch (keyMaps[i])
+            {
+                case IOKeyMap.CustomFn1:
+                    result.CustomFn1 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn2:
+                    result.CustomFn2 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn3:
+                    result.CustomFn3 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn4:
+                    result.CustomFn4 |= isPushed;
+                    break;
+            }
+        }
+        return result;
     }
 
     private static readonly Dictionary<uint, Queue<TouchData>> _queue = new();

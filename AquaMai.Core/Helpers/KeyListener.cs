@@ -14,6 +14,7 @@ public static class KeyListener
 {
     private static readonly Dictionary<KeyCodeOrName, int> _keyPressFrames = [];
     private static readonly Dictionary<KeyCodeOrName, int> _keyPressFramesPrev = [];
+    private static bool[] _customFnState = new bool[4];
 
     static KeyListener()
     {
@@ -28,6 +29,8 @@ public static class KeyListener
     [HarmonyPatch(typeof(GameMainObject), "Update")]
     public static void CheckLongPush()
     {
+        _customFnState = JvsSwitchHook.GetCustomFnState(); // 每帧只检查一次CustomFnState，减少无意义的重复检查
+        
         foreach (KeyCodeOrName key in Enum.GetValues(typeof(KeyCodeOrName)))
         {
             _keyPressFramesPrev[key] = _keyPressFrames[key];
@@ -54,6 +57,7 @@ public static class KeyListener
             KeyCodeOrName.Service => InputManager.GetSystemInputPush(InputManager.SystemButtonSetting.ButtonService),
             KeyCodeOrName.Select1P => InputManager.GetButtonPush(0, InputManager.ButtonSetting.Select),
             KeyCodeOrName.Select2P => InputManager.GetButtonPush(1, InputManager.ButtonSetting.Select),
+            <= KeyCodeOrName.CustomFn4 => _customFnState[key - KeyCodeOrName.CustomFn1],
             _ => throw new ArgumentOutOfRangeException(nameof(key), key, "我也不知道这是什么键")
         };
 

@@ -146,6 +146,7 @@ public class MaimollerIO
         {
             JvsSwitchHook.RegisterButtonChecker(IsButtonPushed);
             JvsSwitchHook.RegisterAuxiliaryStateProvider(GetAuxiliaryState);
+            JvsSwitchHook.RegisterCustomFnStateProvider(GetCustomFnState);
         }
     }
 
@@ -188,6 +189,35 @@ public class MaimollerIO
             }
         }
         return auxiliaryState;
+    }
+    
+    private static CustomFnState GetCustomFnState()
+    {
+        var result = new CustomFnState();
+        IOKeyMap[] keyMaps = [button1, button2, button3, button4];
+        for (int i = 0; i < 4; i++)
+        {
+            var is1PPushed = button1p && _devices[0].IsSystemButtonPressed(auxiliaryButtonMap[i]);
+            var is2PPushed = button2p && _devices[1].IsSystemButtonPressed(auxiliaryButtonMap[i]);
+            var isPushed = is1PPushed || is2PPushed;
+            switch (keyMaps[i])
+            {
+                case IOKeyMap.CustomFn1:
+                    result.CustomFn1 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn2:
+                    result.CustomFn2 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn3:
+                    result.CustomFn3 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn4:
+                    result.CustomFn4 |= isPushed;
+                    break;
+            }
+        }
+
+        return result;
     }
 
     #endregion

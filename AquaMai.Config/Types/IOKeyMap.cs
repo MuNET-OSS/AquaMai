@@ -8,4 +8,8 @@ public enum IOKeyMap
     Select2P,
     Service,
     Test,
+    CustomFn1,
+    CustomFn2,
+    CustomFn3,
+    CustomFn4,
 }
