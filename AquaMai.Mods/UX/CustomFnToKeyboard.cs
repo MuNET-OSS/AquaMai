@@ -1,9 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using AquaMai.Config.Attributes;
 using AquaMai.Config.Types;
-using AquaMai.Core;
 using AquaMai.Core.Helpers;
 using HarmonyLib;
 using Main;
@@ -95,39 +93,34 @@ public static class CustomFnToKeyboard
     [HarmonyPatch(typeof(GameMainObject), "Update")]
     public static void CheckCustomFnKey()
     {
-        var fnKeys = new Dictionary<KeyCodeOrName, VKCode>
+        if (CustomFn1 > 0) SendInputEvent(KeyCodeOrName.CustomFn1, CustomFn1);
+        if (CustomFn2 > 0) SendInputEvent(KeyCodeOrName.CustomFn2, CustomFn2);
+        if (CustomFn3 > 0) SendInputEvent(KeyCodeOrName.CustomFn3, CustomFn3);
+        if (CustomFn4 > 0) SendInputEvent(KeyCodeOrName.CustomFn4, CustomFn4);
+    }
+    
+    private static void SendInputEvent(KeyCodeOrName keyCode, VKCode vkCode)
+    {
+        uint dwFlags;
+        if (KeyListener.GetKeyJustDown(keyCode))
         {
-            { KeyCodeOrName.CustomFn1, CustomFn1 },
-            { KeyCodeOrName.CustomFn2, CustomFn2 },
-            { KeyCodeOrName.CustomFn3, CustomFn3 },
-            { KeyCodeOrName.CustomFn4, CustomFn4 },
-        };
+            dwFlags = 0; // 按下事件的flag
+        } else if (KeyListener.GetKeyJustUp(keyCode))
+        {
+            dwFlags = 2; // 抬起事件的flag
+        }
+        else return; // 没有刚刚按下或抬起，不要发送事件
         
-        foreach (var (keyCode, vkCode) in fnKeys)
-        {
-            if (vkCode == 0) continue;
-
-            var eventObj = new INPUT();
-            eventObj.type = 1; // INPUT_KEYBOARD
-            if (KeyListener.GetKeyJustDown(keyCode))
-            {
-                eventObj.U.ki.wVk = (ushort)vkCode; // 键码
-                eventObj.U.ki.dwFlags = 0; // 按下事件的flag
-            } else if (KeyListener.GetKeyJustUp(keyCode))
-            {
-                eventObj.U.ki.wVk = (ushort)vkCode; // 键码
-                eventObj.U.ki.dwFlags = 2; // 抬起事件的flag
-            }
-            else continue; // 没有刚刚按下或抬起，不要发送事件
-            
+        var eventObj = new INPUT{ type = 1 }; // INPUT_KEYBOARD
+        eventObj.U.ki.wVk = (ushort)vkCode; // 键码
+        eventObj.U.ki.dwFlags = dwFlags;
 # if DEBUG
-            MelonLogger.Msg($"[CustomFnToKeyboard] {keyCode} set to {vkCode}. Sending Keyboard Event wVk={eventObj.U.ki.wVk} dwFlags={eventObj.U.ki.dwFlags}. Diagnostic: INPUT struct size = { Marshal.SizeOf(typeof(INPUT))}, should be 40.");
+        MelonLogger.Msg($"[CustomFnToKeyboard] {keyCode} set to {vkCode}. Sending Keyboard Event wVk={eventObj.U.ki.wVk} dwFlags={eventObj.U.ki.dwFlags}. Diagnostic: INPUT struct size = { Marshal.SizeOf(typeof(INPUT))}, should be 40.");
 # endif
-            uint result = SendInput(1, [eventObj], Marshal.SizeOf(typeof(INPUT)));
-            if (result == 0)
-            {
-                MelonLogger.Warning($"[CustomFnToKeyboard] Calling Win32 API SendInput, FAILED, result={result}, lastError={Marshal.GetLastWin32Error()}");
-            }
+        uint result = SendInput(1, [eventObj], Marshal.SizeOf(typeof(INPUT)));
+        if (result == 0)
+        {
+            MelonLogger.Warning($"[CustomFnToKeyboard] Calling Win32 API SendInput, FAILED, result={result}, lastError={Marshal.GetLastWin32Error()}. Diagnostic: INPUT struct size = { Marshal.SizeOf(typeof(INPUT))}, should be 40.");
         }
     }
 }
