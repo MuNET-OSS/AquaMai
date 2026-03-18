@@ -13,16 +13,16 @@ namespace AquaMai.Mods.UX;
 [ConfigSection(
     name: "自定义功能键映射",
     en: "Map custom function keys to system-level keyboard keys. By mapping them to keys such as Enter, you can use cabinet buttons for actions like \"pressing Enter to swipe AIME card\". Note: you should set the corresponding button to \"Custom Function Key\" in your controller's IO settings first.",
-    zh: "将自定义功能键映射为系统级键盘按键。可以通过把自定义功能键映射为Enter等按键，实现用机台按键回车刷卡等功能。注意：使用前需要在对应的控制器IO设置中，将相应的物理按键功能设置为“自定义功能键”。")]
+    zh: "将控制器上的自定义功能键映射为系统级键盘按键。可以通过把功能键映射为Enter等按键，实现用机台按键回车刷卡等功能。注意：使用前需要在对应的控制器IO设置中，将相应的物理按键功能设置为“自定义功能键”。")]
 public static class CustomFnToKeyboard
 {
-    [ConfigEntry(name: "自定义按键1")]
+    [ConfigEntry(name: "自定义功能键1")]
     public static readonly VKCode CustomFn1 = VKCode.None; // 把自定义功能键1映射为键盘上的哪个键。默认均为禁用。
-    [ConfigEntry(name: "自定义按键2")]
+    [ConfigEntry(name: "自定义功能键2")]
     public static readonly VKCode CustomFn2 = VKCode.None;
-    [ConfigEntry(name: "自定义按键3")]
+    [ConfigEntry(name: "自定义功能键3")]
     public static readonly VKCode CustomFn3 = VKCode.None;
-    [ConfigEntry(name: "自定义按键4")]
+    [ConfigEntry(name: "自定义功能键4")]
     public static readonly VKCode CustomFn4 = VKCode.None;
     
     // 与发送系统级按键事件有关的结构体/外部接口等。

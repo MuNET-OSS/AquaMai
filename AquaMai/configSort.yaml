@@ -15,6 +15,7 @@
   - GameSystem.MaimollerIO
   - GameSystem.PdxTouch
   - Tweaks.ResetTouch
+  - UX.CustomFnToKeyboard
 
 输入设置:
   - GameSystem.KeyMap
@@ -164,6 +165,7 @@
   - Fancy.GamePlay.FixJudgeTouchHoldInNormalArea
   - Fancy.GamePlay.ReviveFinaleVSlide
   - UX.DontRuinMyAccount
+  - UX.CustomFnToKeyboard
   - UX.Hide1879
   - UX.GrantFinalGateKey
   - Fancy.GamePlay.TapInHoldFix
