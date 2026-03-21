@@ -290,6 +290,15 @@ namespace AquaMai.Core.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to SSS =&gt; DXRating += {0}.
+        /// </summary>
+        public static string RatingUpWhenSSS {
+            get {
+                return ResourceManager.GetString("RatingUpWhenSSS", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to SSS+ =&gt; DXRating += {0}.
         /// </summary>
         public static string RatingUpWhenSSSp {
