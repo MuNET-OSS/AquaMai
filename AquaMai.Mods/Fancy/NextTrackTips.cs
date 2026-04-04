@@ -191,7 +191,7 @@ public class NextTrackTips
     #endregion
 
     #region KaleidxScopeFadeProcess Patch
-    [EnableGameVersion(25000, noWarn: true)]
+    [EnableGameVersion(25000, 26499, noWarn: true)]
     [HarmonyPostfix]
     [HarmonyPatch(typeof(KaleidxScopeFadeProcess), "OnStart")]
     public static void KS_OnStart_Postfix(ProcessBase ___toProcess, List<KaleidxScopeFadeController> ___mainControllerList)
@@ -221,7 +221,7 @@ public class NextTrackTips
         }
     }
 
-    [EnableGameVersion(25000, noWarn: true)]
+    [EnableGameVersion(25000, 26499, noWarn: true)]
     [HarmonyPostfix]
     [HarmonyPatch(typeof(KaleidxScopeFadeProcess), "OnLateUpdate")]
     public static void KS_OnLateUpdate_Postfix(List<KaleidxScopeFadeController> ___mainControllerList, KaleidxScopeFadeState ___stateMachine)
@@ -230,7 +230,7 @@ public class NextTrackTips
             _hackyWindows[i]?.UpdateView(GameManager.GetGameMSecAdd());
     }
 
-    [EnableGameVersion(25000, noWarn: true)]
+    [EnableGameVersion(25000, 26499, noWarn: true)]
     [HarmonyPostfix]
     [HarmonyPatch(typeof(KaleidxScopeFadeProcess), "StartFadeIn")]
     public static void KS_StartFadeIn_Postfix(List<KaleidxScopeFadeController> ___mainControllerList)
@@ -239,7 +239,7 @@ public class NextTrackTips
             _hackyWindows[i]?.Close();
     }
 
-    [EnableGameVersion(25000, noWarn: true)]
+    [EnableGameVersion(25000, 26499, noWarn: true)]
     [HarmonyPrefix]
     [HarmonyPatch(typeof(KaleidxScopeFadeProcess), "OnRelease")]
     public static void KS_OnRelease_Prefix(List<KaleidxScopeFadeController> ___mainControllerList)
