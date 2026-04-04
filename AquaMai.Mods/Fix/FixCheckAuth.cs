@@ -63,7 +63,6 @@ public class FixCheckAuth
                 Auth.GameServerUri.StartsWith("http://") && operationData.ServerUri.StartsWith("https://"))
             {
                 tlsFailed = true;
-                MelonLogger.Warning(Locale.UnableToUseTls);
                 operationData.ServerUri = Auth.GameServerUri;
             }
         }

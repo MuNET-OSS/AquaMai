@@ -21,18 +21,19 @@ using UnityEngine;
 namespace AquaMai.Mods.GameSystem;
 
 [ConfigSection(
-    name: "ADX HID 输入",
+    name: "ADX / NPRO HID",
     defaultOn: true,
-    en: "Input using ADX HID firmware (If you are not using ADX's HID firmware, enabling this won't do anything)",
-    zh: "使用 ADX HID 固件的自定义输入（没有 ADX 的话开了也不会加载，也没有坏处）")]
+    en: "Input using ADX / NPRO HID (If you are not using ADX / NPRO, enabling this won't do anything)",
+    zh: "使用 ADX / NPRO 的自定义输入（没有 ADX / NPRO 的话开了也不会加载，也没有坏处）")]
 public class AdxHidInput
 {
     private static HidDevice[] adxController = new HidDevice[2];
-    private static byte[,] inputBuf = new byte[2, 32];
-    private static byte[,] inputBufPending = new byte[2, 32];
+    private static byte[][] readBuffer = [null, null];
+    private static readonly InputLatch[] inputLatch = [new(), new()];
     private static double[] td = [0, 0];
     private static bool tdEnabled, keyEnabled, pipeEnabled;
     private static bool[] hidThreadRunning = [false, false];
+    private static bool[] connected = [false, false];
 
     private static bool TryConnectDevice(int p)
     {
@@ -44,24 +45,16 @@ public class AdxHidInput
 
         adxController[p] = device;
         device.OpenDevice();
+        readBuffer[p] = new byte[device.Capabilities.InputReportByteLength];
+        connected[p] = true;
         MelonLogger.Msg($"[HidInput] Device {p + 1}P connected");
 
         return true;
     }
 
-    private static bool IsDeviceAvailable(int p)
+    private static bool IsDeviceConnected(int p)
     {
-        var device = adxController[p];
-        if (device == null) return false;
-
-        try
-        {
-            return device.IsConnected;
-        }
-        catch
-        {
-            return false;
-        }
+        return adxController[p] != null && connected[p];
     }
 
     private static void DisconnectDevice(int p)
@@ -78,13 +71,11 @@ public class AdxHidInput
             // ignore
         }
 
+        connected[p] = false;
         adxController[p] = null;
+        readBuffer[p] = null;
 
-        for (int i = 0; i < 32; i++)
-        {
-            inputBuf[p, i] = 0;
-            inputBufPending[p, i] = 0;
-        }
+        inputLatch[p].Clear();
 
         MelonLogger.Msg($"[HidInput] Device {p + 1}P disconnected");
     }
@@ -114,7 +105,7 @@ public class AdxHidInput
         {
             if (RealHotPlugSupport)
             {
-                while (!IsDeviceAvailable(p))
+                while (!IsDeviceConnected(p))
                 {
                     Thread.Sleep(500);
                     TryConnectDevice(p);
@@ -122,7 +113,7 @@ public class AdxHidInput
             }
             else
             {
-                if (!IsDeviceAvailable(p)) return;
+                if (!IsDeviceConnected(p)) return;
             }
 
             if (!NeedsButtonInput(p))
@@ -136,26 +127,21 @@ public class AdxHidInput
 
             try
             {
-                var report = device.Read();
-
-                if (report.Status != HidDeviceData.ReadStatus.Success)
+                var buf = readBuffer[p];
+                if (buf == null) continue;
+                if (!HidRawIO.Read(device, buf, out var bytesRead) || bytesRead <= 13)
                 {
                     DisconnectDevice(p);
                     if (!RealHotPlugSupport) return;
                     continue;
                 }
-
-                if (report.Data.Length <= 13) continue;
-
+                ulong state = 0;
                 for (int i = 0; i < 14; i++)
                 {
-                    var newState = report.Data[i];
-                    if (newState == 1 && inputBuf[p, i] == 0)
-                    {
-                        inputBufPending[p, i] = 1;
-                    }
-                    inputBuf[p, i] = newState;
+                    if (buf[i] == 1)
+                        state |= (1UL << i);
                 }
+                inputLatch[p].Update(state);
             }
             catch
             {
@@ -248,6 +234,7 @@ public class AdxHidInput
         if (!keyEnabled) return;
         JvsSwitchHook.RegisterButtonChecker(IsButtonPushed);
         JvsSwitchHook.RegisterAuxiliaryStateProvider(GetAuxiliaryState);
+        JvsSwitchHook.RegisterCustomFnStateProvider(GetCustomFnState);
     }
 
     private static bool IsButtonPushed(int playerNo, int buttonIndex1To8)
@@ -266,12 +253,7 @@ public class AdxHidInput
         };
         if (bufIndex < 0) return false;
 
-        if (inputBufPending[playerNo, bufIndex] == 1)
-        {
-            inputBufPending[playerNo, bufIndex] = 0;
-            return true;
-        }
-        return inputBuf[playerNo, bufIndex] == 1;
+        return inputLatch[playerNo].ReadBit(bufIndex);
     }
 
     [ConfigEntry(name: "按钮 1（向上的三角键）")]
@@ -296,10 +278,8 @@ public class AdxHidInput
         for (int i = 0; i < 4; i++)
         {
             var keyIndex = 10 + i;
-            var is1PPushed = inputBufPending[0, keyIndex] == 1 || inputBuf[0, keyIndex] == 1;
-            var is2PPushed = inputBufPending[1, keyIndex] == 1 || inputBuf[1, keyIndex] == 1;
-            inputBufPending[0, keyIndex] = 0;
-            inputBufPending[1, keyIndex] = 0;
+            var is1PPushed = inputLatch[0].ReadBit(keyIndex);
+            var is2PPushed = inputLatch[1].ReadBit(keyIndex);
             switch (keyMaps[i])
             {
                 case IOKeyMap.Select1P:
@@ -321,6 +301,35 @@ public class AdxHidInput
             }
         }
         return auxiliaryState;
+    }
+
+    private static CustomFnState GetCustomFnState()
+    {
+        var result = new CustomFnState();
+        IOKeyMap[] keyMaps = [button1, button2, button3, button4];
+        for (int i = 0; i < 4; i++)
+        {
+            var keyIndex = 10 + i;
+            var is1PPushed = inputLatch[0].ReadBit(keyIndex);
+            var is2PPushed = inputLatch[1].ReadBit(keyIndex);
+            var isPushed = is1PPushed || is2PPushed;
+            switch (keyMaps[i])
+            {
+                case IOKeyMap.CustomFn1:
+                    result.CustomFn1 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn2:
+                    result.CustomFn2 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn3:
+                    result.CustomFn3 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn4:
+                    result.CustomFn4 |= isPushed;
+                    break;
+            }
+        }
+        return result;
     }
 
     private static readonly Dictionary<uint, Queue<TouchData>> _queue = new();

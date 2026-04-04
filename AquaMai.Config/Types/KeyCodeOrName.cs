@@ -50,4 +50,8 @@ public enum KeyCodeOrName
     Select2P,
     Service,
     Test,
+    CustomFn1, // 以下四个为用于兼容各种不同品牌机台的通用机台上按键的实现，详见JvsSwitchHook.cd:CustomFnState。
+    CustomFn2,
+    CustomFn3,
+    CustomFn4,
 }

@@ -90,7 +90,7 @@ public class UnstableRate
         msec -= optionJudgeTiming * TimingBin;
 
         // Account for the mod adjustment B judgement offset
-        double modAdjustB = JudgeAdjust.b;
+        double modAdjustB = __instance.MonitorId == 0 ? JudgeAdjust.b_1P : JudgeAdjust.b_2P;
         msec += (float)(modAdjustB * TimingBin);
 
         // Don't process misses

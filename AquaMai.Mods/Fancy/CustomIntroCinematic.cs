@@ -363,7 +363,7 @@ public class CustomIntroCinematic
                 StartVideoPreparation();
 
                 // 通知淡入完成
-                container.processManager.NotificationFadeIn();
+                container.processManager.NotificationFadeInFix();
 
                 // 进入StartWait阶段
                 _state = SimpleMovieState.StartWait;

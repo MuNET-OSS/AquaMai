@@ -14,6 +14,7 @@ public static class KeyListener
 {
     private static readonly Dictionary<KeyCodeOrName, int> _keyPressFrames = [];
     private static readonly Dictionary<KeyCodeOrName, int> _keyPressFramesPrev = [];
+    private static bool[] _customFnState = new bool[4];
 
     static KeyListener()
     {
@@ -26,8 +27,11 @@ public static class KeyListener
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameMainObject), "Update")]
+    [HarmonyPriority(Priority.High)] // 确保在大多数 mod 所钩住的 GameMainObjectUpdate 之前执行，减少它们使用 GetKeyDown 时的误差
     public static void CheckLongPush()
     {
+        _customFnState = JvsSwitchHook.GetCustomFnState(); // 每帧只检查一次CustomFnState，减少无意义的重复检查
+        
         foreach (KeyCodeOrName key in Enum.GetValues(typeof(KeyCodeOrName)))
         {
             _keyPressFramesPrev[key] = _keyPressFrames[key];
@@ -54,26 +58,21 @@ public static class KeyListener
             KeyCodeOrName.Service => InputManager.GetSystemInputPush(InputManager.SystemButtonSetting.ButtonService),
             KeyCodeOrName.Select1P => InputManager.GetButtonPush(0, InputManager.ButtonSetting.Select),
             KeyCodeOrName.Select2P => InputManager.GetButtonPush(1, InputManager.ButtonSetting.Select),
+            <= KeyCodeOrName.CustomFn4 => _customFnState[key - KeyCodeOrName.CustomFn1],
             _ => throw new ArgumentOutOfRangeException(nameof(key), key, "我也不知道这是什么键")
         };
 
+    // 获得按键是否被短按（会在按键被抬起的那一帧触发）
+    // 等价于GetKeyDownOrLongPress(key, false)，一般推荐优先使用下面那个
     public static bool GetKeyDown(KeyCodeOrName key)
     {
-        // return key switch
-        // {
-        //     KeyCodeOrName.None => false,
-        //     < KeyCodeOrName.Select1P => Input.GetKeyDown(key.GetKeyCode()),
-        //     KeyCodeOrName.Test => InputManager.GetSystemInputDown(InputManager.SystemButtonSetting.ButtonTest),
-        //     KeyCodeOrName.Service => InputManager.GetSystemInputDown(InputManager.SystemButtonSetting.ButtonService),
-        //     KeyCodeOrName.Select1P => InputManager.GetButtonDown(0, InputManager.ButtonSetting.Select),
-        //     KeyCodeOrName.Select2P => InputManager.GetButtonDown(1, InputManager.ButtonSetting.Select),
-        //     _ => throw new ArgumentOutOfRangeException(nameof(key), key, "我也不知道这是什么键")
-        // };
-
-        // 不用这个，我们检测按键是否弹起以及弹起之前按下的时间是否小于 30，这样可以防止要长按时按下的时候就触发
+        // 我们检测按键是否弹起以及弹起之前按下的时间是否小于 30，这样可以防止要长按时按下的时候就触发
         return _keyPressFrames[key] == 0 && 0 < _keyPressFramesPrev[key] && _keyPressFramesPrev[key] < 30;
     }
 
+    // 获得按键是否被短按（小于30帧）或长按（大于等于60帧）
+    // 短按：在抬起的那一帧触发
+    // 长按：在按满60帧的那一刻触发
     public static bool GetKeyDownOrLongPress(KeyCodeOrName key, bool isLongPress)
     {
         bool ret;
@@ -94,6 +93,19 @@ public static class KeyListener
         }
 # endif
         return ret;
+    }
+
+    // 获得按键是否（在这一帧）刚刚被按下
+    // 按下就算，无需弹起
+    public static bool GetKeyJustDown(KeyCodeOrName key)
+    {
+        return _keyPressFrames[key] > 0 && _keyPressFramesPrev[key] == 0;
+    }
+    
+    // 获得按键是否（在这一帧）刚刚被抬起
+    public static bool GetKeyJustUp(KeyCodeOrName key)
+    {
+        return _keyPressFrames[key] == 0 && _keyPressFramesPrev[key] > 0;
     }
 
     private static KeyCode GetKeyCode(this KeyCodeOrName keyCodeOrName) =>

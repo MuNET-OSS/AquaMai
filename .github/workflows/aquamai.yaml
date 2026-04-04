@@ -19,7 +19,16 @@ jobs:
           fetch-depth: 0
 
       - name: Get Git Describe
-        run: echo "GIT_DESCRIBE=$(git describe --tags --always)" >> $env:GITHUB_ENV
+        run: |
+          $raw = git describe --tags --always
+          if ($raw.StartsWith("v")) { $raw = $raw.Substring(1) }
+          $parts = $raw.Split('-')
+          if ($parts.Length -ge 3) {
+            $ver = $parts[0].Split('.')
+            $ver[2] = $parts[1]
+            $raw = ($ver -join '.') + '-' + $parts[2]
+          }
+          echo "GIT_DESCRIBE=$raw" >> $env:GITHUB_ENV
 
       - name: Checkout Assets
         uses: clansty/checkout@main

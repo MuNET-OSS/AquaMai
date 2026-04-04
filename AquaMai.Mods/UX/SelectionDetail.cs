@@ -11,7 +11,6 @@ using MAI2.Util;
 using Manager;
 using Manager.MaiStudio;
 using Manager.UserDatas;
-using MelonLoader;
 using Monitor;
 using Process;
 using UnityEngine;
@@ -124,19 +123,10 @@ public class SelectionDetail
                 dataToShow.Add(string.Format(Locale.UserGhostAchievement, $"{userGhost.Achievement / 10000m:0.0000}"));
             }
 
-            var rate = CalcB50(SelectData.MusicData, difficulty);
-            if (rate > 0)
-            {
-                dataToShow.Add(string.Format(Locale.RatingUpWhenSSSp, rate));
-            }
-            else
-            {
-                rate = CalcB50(SelectData.MusicData, difficulty, true);
-                if (rate > 0)
-                {
-                    dataToShow.Add(string.Format(Locale.RatingUpWhenAP, rate));
-                }
-            }
+            var (sssUp, ssspUp, apUp) = CalcScoreIncrements(SelectData.MusicData, difficulty);
+            if (sssUp > 0) dataToShow.Add(string.Format(Locale.RatingUpWhenSSS, sssUp));
+            else if (ssspUp > 0) dataToShow.Add(string.Format(Locale.RatingUpWhenSSSp, ssspUp));
+            else if (apUp > 0) dataToShow.Add(string.Format(Locale.RatingUpWhenAP, apUp));
 
             var playCount = Shim.GetUserScoreList(userData)[difficulty].FirstOrDefault(it => it.id == SelectData.MusicData.name.id)?.playcount ?? 0;
             if (playCount > 0)
@@ -160,24 +150,31 @@ public class SelectionDetail
             }
         }
 
-        private int CalcB50(MusicData musicData, int difficulty, bool ap = false)
+        /* 返回值：(推到SSS上的分, 推到SSS+上的分, 推到AP上的分) */
+        private (int sss, int sssp, int ap) CalcScoreIncrements(MusicData musicData, int difficulty)
         {
+            if (musicData.GetID() >= 100000) return (0, 0, 0); // 宴谱不计分
+            
             var musicId = musicData.name.id;
-            var aimRate = ap ? Shim.CreateUserRate(musicId, difficulty, 1010000, (uint)musicData.version, PlayComboflagID.AllPerfectPlus) :
-                Shim.CreateUserRate(musicId, difficulty, 1005000, (uint)musicData.version, PlayComboflagID.None);
-            var list = aimRate.OldFlag ? userData.RatingList.RatingList : userData.RatingList.NewRatingList;
-            var maxCount = aimRate.OldFlag ? 35 : 15;
-            uint userLowRate = 0;
+            var aimRates = ( // 假定推到了某个目标时，对应的UserRate
+                Shim.CreateUserRate(musicId, difficulty, 1000000, (uint)musicData.version, PlayComboflagID.None),
+                Shim.CreateUserRate(musicId, difficulty, 1005000, (uint)musicData.version, PlayComboflagID.None),
+                Shim.CreateUserRate(musicId, difficulty, 1010000, (uint)musicData.version, PlayComboflagID.AllPerfectPlus)
+            );
+            
+            var list = aimRates.Item1.OldFlag ? userData.RatingList.RatingList : userData.RatingList.NewRatingList;
+            var maxCount = aimRates.Item1.OldFlag ? 35 : 15;
+            int userLowRate = 0;
             if (list.Count == maxCount)
             {
                 var rate = list.Last();
-                userLowRate = rate.SingleRate;
+                userLowRate = (int)rate.SingleRate;
             }
 
             var userSongRate = list.FirstOrDefault(it => it.MusicId == musicId && it.Level == difficulty);
-            if (!userSongRate.Equals(default(UserRate))) userLowRate = userSongRate.SingleRate;
+            if (!userSongRate.Equals(default(UserRate))) userLowRate = (int)userSongRate.SingleRate;
 
-            return (int)aimRate.SingleRate - (int)userLowRate;
+            return ((int)aimRates.Item1.SingleRate - userLowRate, (int)aimRates.Item2.SingleRate - userLowRate, (int)aimRates.Item3.SingleRate - userLowRate);
         }
 
         public void Close()

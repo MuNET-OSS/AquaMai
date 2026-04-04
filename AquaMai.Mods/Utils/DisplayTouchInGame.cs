@@ -72,7 +72,7 @@ public static class DisplayTouchInGame
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameProcess), nameof(GameProcess.OnUpdate))]
-    public static void OnGameProcessUpdate()
+    public static void OnGameProcessUpdate(GameMonitor[] ____monitors)
     {
         for (int i = 0; i < 2; i++)
         {
@@ -86,6 +86,10 @@ public static class DisplayTouchInGame
         for (int i = 0; i < 2; i++)
         {
             if (canvasGameObjects[i] == null) continue;
+            if (displayType[i] > 0 && canvasGameObjects[i].Count == 0)
+            { // 能走到这里，说明肯定是触发了切换键的；现在displayType[i] > 0，说明功能肯定是刚刚才被打开的。因此如果canvasGameObject此前未被创建的话，则现在应该创建之。
+                CreateDisplay(displayType[i], ____monitors[i]);
+            }
             foreach (var go in canvasGameObjects[i])
             {
                 if (go == null) continue;
@@ -107,31 +111,30 @@ public static class DisplayTouchInGame
     [HarmonyPatch(typeof(GameProcess), nameof(GameProcess.OnStart))]
     public static void OnGameStart(GameMonitor[] ____monitors)
     {
-        if (prefab == null)
-        {
-            MelonLogger.Error("[DisplayTouchInGame] prefab is null");
-            return;
-        }
-
         for (int i = 0; i < 2; i++)
         {
             canvasGameObjects[i].Clear();
             var type = displayType[i];
             if (type is < 1 or > 5) continue;
-            if (type is 4 or 5)
-            {
-                CreateDisplay(3, ____monitors[i]);
-                type -= 3;
-            }
-            if (type > 3) continue;
             CreateDisplay(type, ____monitors[i]);
         }
     }
 
-    // type 只能传入 1 2 3，如果是 4 或 5 的话，拆分成两个 call
+    // type 可以传入 1 2 3 4 5。如果是 4 或 5 的话，会自动递归调用一次
     private static void CreateDisplay(int type, GameMonitor monitor)
     {
+        if (type is 4 or 5)
+        {
+            CreateDisplay(3, monitor);
+            type -= 3;
+        }
         if (type is < 1 or > 3) throw new ArgumentException("这不对吧");
+        
+        if (prefab == null)
+        {
+            MelonLogger.Error("[DisplayTouchInGame] prefab is null");
+            return;
+        }
         var sub = monitor.gameObject.transform.Find("Canvas/Sub");
         if (type == 3)
         {

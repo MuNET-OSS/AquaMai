@@ -2,6 +2,7 @@
 using System.Reflection;
 using AquaMai.Config.Attributes;
 using AquaMai.Mods.GameSystem;
+using AquaMai.Mods.UX;
 using HarmonyLib;
 using MAI2.Util;
 using Manager;
@@ -118,6 +119,7 @@ public class DebugFeature
             SoundManager.PauseMusic(value);
             GameMoviePause(value);
             NotesManager.Pause(value);
+            if (value) DontRuinMyAccount.triggerForPracticeMode();
         }
     }
 
@@ -132,6 +134,7 @@ public class DebugFeature
         {
             _debugFeatureType.GetMethod("DebugTimeSkip", BindingFlags.Instance | BindingFlags.Public).Invoke(_debugFeatureOriginal, new object[] { msec });
         }
+        DontRuinMyAccount.triggerForPracticeMode();
     }
 
     public static double CurrentPlayMsec
@@ -242,6 +245,7 @@ public class DebugFeature
                 SoundManager.PauseMusic(isPause);
                 GameMoviePause(isPause);
                 NotesManager.Pause(isPause);
+                if (isPause) DontRuinMyAccount.triggerForPracticeMode();
             }
             else if (DebugInput.GetKeyDown(KeyCode.LeftArrow) || DebugInput.GetKeyDown(KeyCode.RightArrow))
             {
@@ -261,6 +265,7 @@ public class DebugFeature
                     : (num23 * 5));
                 Singleton<GamePlayManager>.Instance.Initialize();
                 DebugTimeSkip(addMsec);
+                DontRuinMyAccount.triggerForPracticeMode();
             }
         }
     }

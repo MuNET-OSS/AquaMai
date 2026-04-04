@@ -82,22 +82,6 @@ public class DisableReboot
         return false;
     }
 
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(ClosingTimer), "IsShowRemainingMinutes")]
-    public static bool IsShowRemainingMinutes(ref bool __result)
-    {
-        __result = false;
-        return false;
-    }
-
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(ClosingTimer), "IsClosed")]
-    public static bool IsClosed(ref bool __result)
-    {
-        __result = false;
-        return false;
-    }
-
     [EnableIf(nameof(forceOfflineTimerExists))]
     [HarmonyPrefix]
     [HarmonyPatch(typeof(MaintenanceTimer), "ForceOfflineRemainingMinutes", MethodType.Getter)]

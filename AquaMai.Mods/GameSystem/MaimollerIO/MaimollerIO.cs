@@ -15,18 +15,16 @@ namespace AquaMai.Mods.GameSystem.MaimollerIO;
 
 [ConfigCollapseNamespace]
 [ConfigSection(
-    name: "Maimoller IO 协议",
+    name: "Maimoller IO V2",
     en: """
         Input (buttons and touch) and output (LEDs) for Maimoller controllers, replacing the stock ADXHIDIOMod.dll.
         Don't enable this if you're not using Maimoller controllers.
-        You must have libadxhid.dll and hidapi.dll in your Sinmai_Data/Plugins folder.
         Please remove ADXHIDIOMod.dll (if any) and disable DummyTouchpanel in mai2.ini.
         """,
     zh: """
         适配 Maimoller 控制器的输入（按钮和触屏）和输出（LED），替代厂商提供的 ADXHIDIOMod.dll。
         如果你没有使用 Maimoller 控制器，请勿启用。
-        请在 Sinmai_Data/Plugins 文件夹下放置 libadxhid.dll 和 hidapi.dll。
-        请删除 ADXHIDIOMod.dll（如果有）并关闭 mai2.ini 中的 DummyTouchpanel
+        请删除 ADXHIDIOMod.dll（如果有）并关闭 mai2.ini 中的 DummyTouchpanel。
         """)]
 public class MaimollerIO
 {
@@ -60,6 +58,22 @@ public class MaimollerIO
         name: "启用 2P 灯光",
         en: "Enable 2P LEDs")]
     private static readonly bool led2p = true;
+
+    [ConfigEntry("启用兼容模式",
+       en: """
+       Use legacy implementation based on vendor DLLs
+       You must have libadxhid.dll and hidapi.dll in your Sinmai_Data/Plugins folder. But please do not place ADXHIDIOMod.dll
+       """,
+       zh: """
+       使用基于厂商 DLL 的旧版实现
+       请在 Sinmai_Data/Plugins 文件夹下放置 libadxhid.dll 和 hidapi.dll。但请不要放置 ADXHIDIOMod.dll
+       """)]
+    private static readonly bool useLegacy = false;
+
+    [ConfigEntry("兼容性 2P 模式",
+       en: "When mixing Maimoller with other protocols and Maimoller is on 2P, and Maimoller is not working properly, enable this (only works for legacy implementation)",
+       zh: "当混用 Maimoller 与其他协议并且 Maimoller 在 2P 上，而且 Maimoller 无法正常使用时开启（仅对旧版实现有效）")]
+    private static readonly bool alternative2p = false;
 
     private static bool ShouldInitForPlayer(int playerNo) => playerNo switch
     {
@@ -103,26 +117,20 @@ public class MaimollerIO
     [ConfigEntry(name: "按钮 4（圆形）")]
     private static readonly IOKeyMap button4 = IOKeyMap.Select2P;
 
-    private static readonly MaimollerInputReport.ButtonMask[] auxiliaryMaskMap =
+    private static readonly SystemButton[] auxiliaryButtonMap =
     [
-        /* button1 */ MaimollerInputReport.ButtonMask.SELECT,
-        /* button2 */ MaimollerInputReport.ButtonMask.SERVICE,
-        /* button3 */ MaimollerInputReport.ButtonMask.TEST,
-        /* button4 */ MaimollerInputReport.ButtonMask.COIN,
+        /* button1 */ SystemButton.Select,
+        /* button2 */ SystemButton.Service,
+        /* button3 */ SystemButton.Test,
+        /* button4 */ SystemButton.Coin,
     ];
 
-    [ConfigEntry("兼容性 2P 模式", 
-       en: "When mixing Maimoller with other protocols and Maimoller is on 2P, and Maimoller is not working properly, enable this",
-       zh: "当混用 Maimoller 与其他协议并且 Maimoller 在 2P 上，而且 Maimoller 无法正常使用时开启")]
-    private static readonly bool alternative2p = false;
 
-    private static MaimollerDevice[] _devices;
-    private static MaimollerLedManager[] _ledManagers;
+    private static IMaimollerDevice[] _devices;
 
     public static void OnBeforePatch()
     {
-        _devices = [.. Enumerable.Range(0, 2).Select(i => new MaimollerDevice(i, alternative2p))];
-        _ledManagers = [.. Enumerable.Range(0, 2).Select(i => new MaimollerLedManager(_devices[i].output))];
+        _devices = [.. Enumerable.Range(0, 2).Select(i => (IMaimollerDevice)(useLegacy ? new MaimollerDeviceLegacy(i, alternative2p) : new MaimollerDeviceNative(i)))];
         for (int i = 0; i < 2; i++)
         {
             if (!ShouldInitForPlayer(i)) continue;
@@ -138,6 +146,7 @@ public class MaimollerIO
         {
             JvsSwitchHook.RegisterButtonChecker(IsButtonPushed);
             JvsSwitchHook.RegisterAuxiliaryStateProvider(GetAuxiliaryState);
+            JvsSwitchHook.RegisterCustomFnStateProvider(GetCustomFnState);
         }
     }
 
@@ -146,18 +155,7 @@ public class MaimollerIO
     private static bool IsButtonPushed(int playerNo, int buttonIndex1To8)
     {
         if (!IsButtonEnabledForPlayer(playerNo)) return false;
-        return buttonIndex1To8 switch
-        {
-            1 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_1) != 0,
-            2 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_2) != 0,
-            3 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_3) != 0,
-            4 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_4) != 0,
-            5 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_5) != 0,
-            6 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_6) != 0,
-            7 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_7) != 0,
-            8 => _devices[playerNo].input.GetSwitchState(MaimollerInputReport.SwitchClass.BUTTON, MaimollerInputReport.ButtonMask.BTN_8) != 0,
-            _ => false,
-        };
+        return _devices[playerNo].IsButtonPressed(buttonIndex1To8);
     }
 
     // NOTE: Coin button is not supported yet. AquaMai recommands setting fixed number of credits directly in the configuration.
@@ -168,8 +166,8 @@ public class MaimollerIO
         IOKeyMap[] keyMaps = [button1, button2, button3, button4];
         for (int i = 0; i < 4; i++)
         {
-            var is1PPushed = button1p && _devices[0].input.GetSwitchState(MaimollerInputReport.SwitchClass.SYSTEM, auxiliaryMaskMap[i]) != 0;
-            var is2PPushed = button2p && _devices[1].input.GetSwitchState(MaimollerInputReport.SwitchClass.SYSTEM, auxiliaryMaskMap[i]) != 0;
+            var is1PPushed = button1p && _devices[0].IsSystemButtonPressed(auxiliaryButtonMap[i]);
+            var is2PPushed = button2p && _devices[1].IsSystemButtonPressed(auxiliaryButtonMap[i]);
             switch (keyMaps[i])
             {
                 case IOKeyMap.Select1P:
@@ -192,18 +190,41 @@ public class MaimollerIO
         }
         return auxiliaryState;
     }
+    
+    private static CustomFnState GetCustomFnState()
+    {
+        var result = new CustomFnState();
+        IOKeyMap[] keyMaps = [button1, button2, button3, button4];
+        for (int i = 0; i < 4; i++)
+        {
+            var is1PPushed = button1p && _devices[0].IsSystemButtonPressed(auxiliaryButtonMap[i]);
+            var is2PPushed = button2p && _devices[1].IsSystemButtonPressed(auxiliaryButtonMap[i]);
+            var isPushed = is1PPushed || is2PPushed;
+            switch (keyMaps[i])
+            {
+                case IOKeyMap.CustomFn1:
+                    result.CustomFn1 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn2:
+                    result.CustomFn2 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn3:
+                    result.CustomFn3 |= isPushed;
+                    break;
+                case IOKeyMap.CustomFn4:
+                    result.CustomFn4 |= isPushed;
+                    break;
+            }
+        }
+
+        return result;
+    }
 
     #endregion
 
     private static ulong GetTouchState(int i)
     {
-        ulong s = 0;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_A, MaimollerInputReport.ButtonMask.ANY_PLAYER);
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_B, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 8;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_C, MaimollerInputReport.ButtonMask.ANY_TOUCH_C) << 16;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_D, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 18;
-        s |= (ulong)_devices[i].input.GetSwitchState(MaimollerInputReport.SwitchClass.TOUCH_E, MaimollerInputReport.ButtonMask.ANY_PLAYER) << 26;
-        return s;
+        return _devices[i].GetTouchState();
     }
 
     [HarmonyPrefix]
@@ -227,7 +248,7 @@ public class MaimollerIO
         public static void Prefix(byte index, Color32 color)
         {
             if (!IsLedEnabledForPlayer(index)) return;
-            _ledManagers[index].SetBillboardColor(color);
+            _devices[index].SetBillboardColor(color);
         }
     }
 
@@ -237,7 +258,7 @@ public class MaimollerIO
     public static void PostPreExecute(Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].PreExecute();
+        _devices[____initParam.index].LedPreExecute();
     }
 
 
@@ -247,7 +268,7 @@ public class MaimollerIO
     public static void Pre_setColor(byte ledPos, Color32 color, Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].SetButtonColor(ledPos, color);
+        _devices[____initParam.index].SetButtonColor(ledPos, color);
     }
 
     [HarmonyPrefix]
@@ -256,7 +277,7 @@ public class MaimollerIO
     public static void Pre_setColorMulti(Color32 color, byte speed, Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].SetButtonColor(-1, color);
+        _devices[____initParam.index].SetButtonColor(-1, color);
     }
 
     [HarmonyPrefix]
@@ -265,7 +286,7 @@ public class MaimollerIO
     public static void Pre_setColorMultiFade(Color32 color, byte speed, Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].SetButtonColorFade(-1, color, GetByte2Msec(speed));
+        _devices[____initParam.index].SetButtonColorFade(-1, color, GetByte2Msec(speed));
     }
 
     [HarmonyPrefix]
@@ -274,9 +295,9 @@ public class MaimollerIO
     public static void Pre_setColorMultiFet(Color32 color, Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].SetBodyIntensity(8, color.r);
-        _ledManagers[____initParam.index].SetBodyIntensity(9, color.g);
-        _ledManagers[____initParam.index].SetBodyIntensity(10, color.b);
+        _devices[____initParam.index].SetBodyIntensity(8, color.r);
+        _devices[____initParam.index].SetBodyIntensity(9, color.g);
+        _devices[____initParam.index].SetBodyIntensity(10, color.b);
     }
 
     [HarmonyPrefix]
@@ -285,7 +306,7 @@ public class MaimollerIO
     public static void Pre_setColorFet(byte ledPos, byte color, Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].SetBodyIntensity(ledPos, color);
+        _devices[____initParam.index].SetBodyIntensity(ledPos, color);
     }
 
 
@@ -295,8 +316,8 @@ public class MaimollerIO
     public static void Pre_setLedAllOff(Bd15070_4IF.InitParam ____initParam)
     {
         if (!IsLedEnabledForPlayer(____initParam.index)) return;
-        _ledManagers[____initParam.index].SetBodyIntensity(-1, 0);
-        _ledManagers[____initParam.index].SetButtonColor(-1, new Color32(0, 0, 0, byte.MaxValue));
+        _devices[____initParam.index].SetBodyIntensity(-1, 0);
+        _devices[____initParam.index].SetButtonColor(-1, new Color32(0, 0, 0, byte.MaxValue));
     }
 
     private static long GetByte2Msec(byte speed) => (long)Math.Round(4095.0 / speed * 8.0);

@@ -1,4 +1,5 @@
 ﻿using AquaMai.Config.Attributes;
+using AquaMai.Core.Helpers;
 using HarmonyLib;
 using Process;
 using UnityEngine;
@@ -36,7 +37,7 @@ public class TrackStartProcessTweak
             {
                 // 这是用来让转场动画继续播放的, 原本就是这个时候 notify 的同时开始播放开始动画
                 // 现在把开始动画往后延
-                ___container.processManager.NotificationFadeIn();
+                ___container.processManager.NotificationFadeInFix();
             }
             ____timeCounter = temp;
             if (____timeCounter >= 3.0f)

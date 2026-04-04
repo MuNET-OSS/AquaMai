@@ -30,8 +30,7 @@ public class FixLevelDisplay
         // 在 KLD 表门和里门不应用修改
         if (GameManager.IsKaleidxScopeMode)
         {
-            if (Singleton<KaleidxScopeManager>.Instance.gateId == 8 ||
-                Singleton<KaleidxScopeManager>.Instance.gateId == 10)
+            if (Shim.KaleidxScopeGateId is 8 or 10)
             {
                 return;
             }

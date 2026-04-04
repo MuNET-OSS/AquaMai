@@ -73,6 +73,9 @@
     <data name="NetErrWasDownloadSuccessOnce" xml:space="preserve">
         <value>数据下载不成功</value>
     </data>
+    <data name="RatingUpWhenSSS" xml:space="preserve">
+        <value>推到鸟可上 {0} 分</value>
+    </data>
     <data name="RatingUpWhenSSSp" xml:space="preserve">
         <value>推到鸟加可上 {0} 分</value>
     </data>
@@ -163,7 +166,7 @@
         <value>AutoPlay开启中</value>
     </data>
     <data name="AutoplayWasUsed" xml:space="preserve">
-        <value>Autoplay曾开启过，本曲成绩不会被上传。</value>
+        <value>Autoplay或练习模式曾开启过，本曲成绩不会被上传。</value>
     </data>
     <data name="UnableSaveConfig" xml:space="preserve">
         <value>=============================================!!!

@@ -11,4 +11,6 @@
   <Project Path="AquaMai.ErrorReport/AquaMai.ErrorReport.csproj" />
   <Project Path="AquaMai/AquaMai.csproj" />
 
+  <Project Path="MuMod/MuMod.csproj" />
+
 </Solution>

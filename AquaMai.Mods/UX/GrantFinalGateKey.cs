@@ -16,7 +16,7 @@ namespace AquaMai.Mods.UX;
     zh: "按 Enter 键获得 KLD 里门的钥匙 (DXPASS)",
     defaultOn: true
 )]
-[EnableGameVersion(25500)]
+[EnableGameVersion(25500, 26000)]
 public class GrantFinalGateKey
 {
     [HarmonyPostfix]

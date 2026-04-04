@@ -24,6 +24,36 @@ public partial class ExteraMouseInput
     public readonly static float radius = 25;
 
     [ConfigEntry(
+        name: "A 区额外半径",
+        en: "Extra radius for A area (outer ring buttons). Can be negative to shrink.",
+        zh: "A 区（外圈按键）的额外半径，可以为负值来缩小")]
+    public readonly static float aAreaExtraRadius = 0;
+
+    [ConfigEntry(
+        name: "B 区额外半径",
+        en: "Extra radius for B area (middle ring sensors). Can be negative to shrink.",
+        zh: "B 区（中圈传感器）的额外半径，可以为负值来缩小")]
+    public readonly static float bAreaExtraRadius = 0;
+
+    [ConfigEntry(
+        name: "C 区额外半径",
+        en: "Extra radius for C area (center sensors). Can be negative to shrink.",
+        zh: "C 区（中心传感器）的额外半径，可以为负值来缩小")]
+    public readonly static float cAreaExtraRadius = 0;
+
+    [ConfigEntry(
+        name: "D 区额外半径",
+        en: "Extra radius for D area (inner ring sensors). Can be negative to shrink.",
+        zh: "D 区（内圈传感器）的额外半径，可以为负值来缩小")]
+    public readonly static float dAreaExtraRadius = 0;
+
+    [ConfigEntry(
+        name: "E 区额外半径",
+        en: "Extra radius for E area (innermost ring sensors). Can be negative to shrink.",
+        zh: "E 区（最内圈传感器）的额外半径，可以为负值来缩小")]
+    public readonly static float eAreaExtraRadius = 0;
+
+    [ConfigEntry(
         name: "显示触摸点",
         en: "Display touch points (only for touch input).",
         zh: "显示触摸点（仅限触屏输入）")]
@@ -135,33 +165,44 @@ public partial class ExteraMouseInput
             return false;
         }
 
+        float effectiveRadius = GetEffectiveRadius(__instance.name);
+
         bool isInsidePolygon = false;
-        //检查是否在多边形顶点内
-        isInsidePolygon = PolygonRaycasting.IsVertDistance(polygon, localInputPoint, radius);
-        //检查是否在多边形边上
-        if (!isInsidePolygon)
+        if (effectiveRadius > 0)
         {
-            isInsidePolygon = PolygonRaycasting.IsCircleIntersectingPolygonEdges(polygon, localInputPoint, radius);
+            //检查是否在多边形顶点内
+            isInsidePolygon = PolygonRaycasting.IsVertDistance(polygon, localInputPoint, effectiveRadius);
+            //检查是否在多边形边上
+            if (!isInsidePolygon)
+            {
+                isInsidePolygon = PolygonRaycasting.IsCircleIntersectingPolygonEdges(polygon, localInputPoint, effectiveRadius);
+            }
         }
         // 检查是否在多边形内部
         if (!isInsidePolygon)
         {
             isInsidePolygon = PolygonRaycasting.InPointInInternal(polygon, localInputPoint);
         }
-        //if (isInsidePolygon)
-        //{
-        //    foreach (var p in polygon)
-        //    {
-        //        var testo = new GameObject("A");
-        //        testo.transform.SetParent(rectTransform);
-        //        testo.transform.localPosition = p;
-        //        testo.transform.localScale = Vector3.one * 0.2f;
-        //        testo.AddComponent<RectTransform>();
-        //        testo.AddComponent<Image>();
-        //    }
-        //}
         __result = isInsidePolygon;
         return false;
+    }
+
+    static float GetEffectiveRadius(string buttonName)
+    {
+        if (string.IsNullOrEmpty(buttonName) || buttonName.Length == 0)
+            return Math.Max(0, radius);
+
+        float extra = buttonName[0] switch
+        {
+            'A' => aAreaExtraRadius,
+            'B' => bAreaExtraRadius,
+            'C' => cAreaExtraRadius,
+            'D' => dAreaExtraRadius,
+            'E' => eAreaExtraRadius,
+            _ => 0
+        };
+
+        return Math.Max(0, radius + extra);
     }
 
     #region ⚪

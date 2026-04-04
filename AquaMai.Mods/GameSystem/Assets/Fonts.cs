@@ -38,62 +38,109 @@ public class Fonts
         zh: "将自定义字体作为游戏原字体的回退，尽可能使用游戏原字体")]
     private static readonly bool addAsFallback = true;
 
-    private static List<TMP_FontAsset> fontAssets = [];
-    private static readonly List<TMP_FontAsset> processedFonts = [];
+    [ConfigEntry(
+        en: """
+            Font path(s) specifically for SEGA_MaruGothicDB SDF.
+            Use semicolon to separate multiple paths.
+            If empty, uses the general paths above.
+            """,
+        zh: """
+            SEGA_MaruGothicDB SDF 的单独字体路径
+            使用分号分隔多个路径
+            留空则使用上方的总设置
+            """)]
+    private static readonly string maruGothicPaths = "";
 
-    public static void OnBeforePatch()
+    [ConfigEntry(
+        en: """
+            Font path(s) specifically for SEGA_NewRodinN v2-EB_0 SDF.
+            Use semicolon to separate multiple paths.
+            If empty, uses the general paths above.
+            """,
+        zh: """
+            SEGA_NewRodinN v2-EB_0 SDF 的单独字体路径
+            使用分号分隔多个路径
+            留空则使用上方的总设置
+            """)]
+    private static readonly string newRodinPaths = "";
+
+    private static List<TMP_FontAsset> fontAssets = [];
+    private static List<TMP_FontAsset> maruGothicFontAssets = [];
+    private static List<TMP_FontAsset> newRodinFontAssets = [];
+    private static readonly List<TMP_FontAsset> processedFonts = [];
+    private static readonly Dictionary<string, TMP_FontAsset> fontAssetCache = new();
+
+    private static List<TMP_FontAsset> LoadFonts(string pathsStr)
     {
-        var paths = Fonts.paths
+        var resolvedPaths = pathsStr
             .Split(';')
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(FileSystem.ResolvePath);
-        var fonts = paths
-            .Select(p =>
-            {
-                var font = new Font(p);
-                if (font == null)
-                {
-                    MelonLogger.Warning($"[Fonts] Font not found: {p}");
-                }
-                return font;
-            })
-            .Where(f => f != null);
-        fontAssets = fonts
-            .Select(f => TMP_FontAsset.CreateFontAsset(f, 90, 9, GlyphRenderMode.SDFAA, 8192, 8192))
-            .ToList();
-        
-        fontAssets.ForEach(f => f.ReadFontAssetDefinition());
 
-        if (fontAssets.Count == 0)
+        var result = new List<TMP_FontAsset>();
+        foreach (var p in resolvedPaths)
+        {
+            if (fontAssetCache.TryGetValue(p, out var cached))
+            {
+                result.Add(cached);
+                continue;
+            }
+
+            var font = new Font(p);
+            if (font == null)
+            {
+                MelonLogger.Warning($"[Fonts] Font not found: {p}");
+                continue;
+            }
+
+            var asset = TMP_FontAsset.CreateFontAsset(font, 90, 9, GlyphRenderMode.SDFAA, 8192, 8192);
+            asset.ReadFontAssetDefinition();
+            fontAssetCache[p] = asset;
+            result.Add(asset);
+        }
+
+        return result;
+    }
+
+    public static void OnBeforePatch()
+    {
+        fontAssets = LoadFonts(paths);
+
+        if (!string.IsNullOrWhiteSpace(maruGothicPaths))
+            maruGothicFontAssets = LoadFonts(maruGothicPaths);
+
+        if (!string.IsNullOrWhiteSpace(newRodinPaths))
+            newRodinFontAssets = LoadFonts(newRodinPaths);
+
+        if (fontAssets.Count == 0 && maruGothicFontAssets.Count == 0 && newRodinFontAssets.Count == 0)
         {
             MelonLogger.Warning("[Fonts] No font loaded.");
         }
-        // else if (addAsFallback)
-        // {
-        //     fallbackFontAssets = fontAssets;
-        // }
-        // else
-        // {
-        //     replacementFontAsset = fontAssets[0];
-        //     fallbackFontAssets = fontAssets.Skip(1).ToList();
-        // }
+    }
+
+    private static List<TMP_FontAsset> GetFallbackFonts(string fontName)
+    {
+        return fontName switch
+        {
+            "SEGA_MaruGothicDB SDF" when maruGothicFontAssets.Count > 0 => maruGothicFontAssets,
+            "SEGA_NewRodinN v2-EB_0 SDF" when newRodinFontAssets.Count > 0 => newRodinFontAssets,
+            _ => fontAssets
+        };
     }
 
     [HarmonyPatch(typeof(TextMeshProUGUI), "Awake")]
     [HarmonyPostfix]
     public static void PostAwake(TextMeshProUGUI __instance)
     {
-        if (fontAssets.Count == 0) return;
+        var fallbackFonts = GetFallbackFonts(__instance.font.name);
+        if (fallbackFonts.Count == 0) return;
         if (processedFonts.Contains(__instance.font)) return;
 
         if (!addAsFallback)
         {
             __instance.font.ClearFontAssetData();
         }
-        if (fontAssets.Count > 0)
-        {
-            ProcessFallback(__instance);
-        }
+        ProcessFallback(__instance, fallbackFonts);
 
         processedFonts.Add(__instance.font);
     }
@@ -117,9 +164,9 @@ public class Fonts
 //         // }
 //     }
 
-    private static void ProcessFallback(TextMeshProUGUI __instance)
+    private static void ProcessFallback(TextMeshProUGUI __instance, List<TMP_FontAsset> fonts)
     {
-        foreach (var fontAsset in fontAssets)
+        foreach (var fontAsset in fonts)
         {
             __instance.font.fallbackFontAssetTable.Add(fontAsset);
         }

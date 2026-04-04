@@ -23,6 +23,23 @@ try {
     if ($gitDescribe.StartsWith("v")) {
         $gitDescribe = $gitDescribe.Substring(1)
     }
+
+    # Parse git describe: "1.8.0" or "1.8.0-3-gabcdef"
+    # Merge commit count into the patch version: "1.8.0-3-gabcdef" → "1.8.3-gabcdef"
+    $describeParts = $gitDescribe.Split('-')
+    $tagVersion = $describeParts[0]
+
+    if ($describeParts.Length -ge 3) {
+        $commitCount = $describeParts[1]
+        $hash = $describeParts[2]
+        $verParts = $tagVersion.Split('.')
+        $verParts[2] = $commitCount
+        $shortVer = $verParts -join '.'
+        $gitDescribe = "$shortVer-$hash"
+    } else {
+        $shortVer = $tagVersion
+    }
+
     $branch = git rev-parse --abbrev-ref HEAD
     if ($branch -ne "main") {
         $gitDescribe = "$gitDescribe-$branch"
@@ -32,17 +49,11 @@ try {
     if (-not $env:CI -and -not $env:GITHUB_ACTIONS) {
         $isDirty = git status --porcelain
         if ($isDirty) {
-            $gitDescribe = "$gitDescribe-DWR"
+            $gitDescribe = "$gitDescribe-dirty"
         }
     }
 
     $buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-    $shortVers = $gitDescribe.Split('-')
-    $shortVer = $shortVers[0]
-    if ($shortVers.Length -gt 1) {
-        $shortVer = "$($shortVers[0]).$($shortVers[1])"
-    }
     
     $versionContent = @"
     // Auto-generated file. Do not modify manually.

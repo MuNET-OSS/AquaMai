@@ -1,10 +1,11 @@
+using System;
 using System.Linq;
-using MelonLoader;
 using UnityEngine;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
-public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, float radius, bool flip)
+public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, float radius, bool flip,
+    float aExtraRadius = 0, float bExtraRadius = 0, float cExtraRadius = 0, float dExtraRadius = 0, float eExtraRadius = 0)
 {
     private static readonly Vector2[][] _sensors = [
         // A1 (0)
@@ -231,15 +232,28 @@ public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, f
         // 检查所有传感器
         for (int i = 0; i < 34; i++)
         {
-            bool isInsidePolygon = PolygonRaycasting.IsVertDistance(_sensors[i], canvasPoint, radius);
-            if (!isInsidePolygon)
+            bool isInsidePolygon;
+            float effectiveRadius = GetEffectiveRadius(i);
+
+            if (effectiveRadius > 0)
             {
-                isInsidePolygon = PolygonRaycasting.IsCircleIntersectingPolygonEdges(_sensors[i], canvasPoint, radius);
+                // 当有半径时，需要检查圆与多边形的关系
+                isInsidePolygon = PolygonRaycasting.IsVertDistance(_sensors[i], canvasPoint, effectiveRadius);
+                if (!isInsidePolygon)
+                {
+                    isInsidePolygon = PolygonRaycasting.IsCircleIntersectingPolygonEdges(_sensors[i], canvasPoint, effectiveRadius);
+                }
+                if (!isInsidePolygon)
+                {
+                    isInsidePolygon = PolygonRaycasting.InPointInInternal(_sensors[i], canvasPoint);
+                }
             }
-            if (!isInsidePolygon)
+            else
             {
+                // 当半径为0时，只需要检查点是否在多边形内部
                 isInsidePolygon = PolygonRaycasting.InPointInInternal(_sensors[i], canvasPoint);
             }
+            
             if (isInsidePolygon)
             {
                 res |= 1ul << i;
@@ -255,5 +269,21 @@ public class TouchSensorMapper(float minX, float minY, float maxX, float maxY, f
     private float MapCoordinate(float value, float fromMin, float fromMax, float toMin, float toMax)
     {
         return toMin + (value - fromMin) * (toMax - toMin) / (fromMax - fromMin);
+    }
+
+    /// <summary>
+    /// 根据传感器索引获取有效半径（基础半径 + 区域额外半径）
+    /// A: 0-7, B: 8-15, C: 16-17, D: 18-25, E: 26-33
+    /// </summary>
+    private float GetEffectiveRadius(int sensorIndex)
+    {
+        float extra;
+        if (sensorIndex <= 7) extra = aExtraRadius;
+        else if (sensorIndex <= 15) extra = bExtraRadius;
+        else if (sensorIndex <= 17) extra = cExtraRadius;
+        else if (sensorIndex <= 25) extra = dExtraRadius;
+        else extra = eExtraRadius;
+
+        return Math.Max(0, radius + extra);
     }
 }

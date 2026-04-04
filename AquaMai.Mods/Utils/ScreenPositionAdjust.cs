@@ -204,7 +204,6 @@ public class ScreenPositionAdjust
             {
                 useMipMap = false,
                 autoGenerateMips = false,
-                depth = 0,
                 antiAliasing = 1,
             };
 

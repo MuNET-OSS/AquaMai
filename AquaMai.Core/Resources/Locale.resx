@@ -80,6 +80,9 @@
     <data name="NetErrWasDownloadSuccessOnce" xml:space="preserve">
         <value>Data download not success</value>
     </data>
+    <data name="RatingUpWhenSSS" xml:space="preserve">
+        <value>SSS =&gt; DXRating += {0}</value>
+    </data>
     <data name="RatingUpWhenSSSp" xml:space="preserve">
         <value>SSS+ =&gt; DXRating += {0}</value>
     </data>
@@ -170,7 +173,7 @@ Press {2} to switch block or exit adjustment mode</value>
         <value>AutoPlay On</value>
     </data>
     <data name="AutoplayWasUsed" xml:space="preserve">
-        <value>Autoplay was used, score will not be saved.</value>
+        <value>Autoplay/PracticeMode was used, score will not be saved.</value>
     </data>
     <data name="UnableSaveConfig" xml:space="preserve">
         <value>==================================================================!!!

@@ -1,36 +1,77 @@
 常用:
   - General
   - GameSystem.SinglePlayer
+  - GameSystem.EnableFreedomMode
   - GameSystem.DisableTimeout
   - GameSystem.QuickRetry
   - UX.OneKeyEntryEnd
   - UX.OneKeyRetrySkip
-  - GameSystem.Window
   - GameSystem.TouchToButtonInput
   - GameSystem.TestProof
   - GameSettings.CreditConfig
-  - Utils.MoveAnswerSound
+  - Utils.FreedomTimer
 
-新功能！:
+控制器输入:
+  - GameSystem.AdxHidInput
+  - GameSystem.MaimollerIO
+  - GameSystem.PdxTouch
+  - Tweaks.ResetTouch
+  - UX.CustomFnToKeyboard
+
+输入设置:
+  - GameSystem.KeyMap
+  - GameSettings.TouchSensitivity
+  - GameSystem.ExteraMouseInput
+
+判定:
+  - GameSettings.JudgeAdjust
+  - UX.JudgeAccuracyInfo
   - Utils.UnstableRate
   - Utils.DisplayTouchInGame
-  - Fancy.ResourcesOverride
-  - GameSystem.OldCabLightBoardSupport
-  - Utils.InstantQuit
-  - GameSystem.MaimollerIO
+  - Fancy.GamePlay.JudgeDisplay4B
+  - UX.PracticeMode
 
-全解和跳过:
+显示:
+  - GameSystem.Window
+  - Utils.ScreenPositionAdjust
+  - Utils.DisplayFrameRate
+
+音频:
+  - GameSystem.Sound
+  - GameSystem.SoundRouting
+  - GameSystem.HeadphoneVolumeMultiply
+  - GameSystem.VolumeSync
+  - Utils.MoveAnswerSound
+
+其他硬件:
+  - GameSystem.CustomCameraId
+  - Tweaks.LedBrightnessControl
+  - UX.DisableLightOutGame
+  - Utils.LedOffOnQuit
+  - GameSystem.OldCabLightBoardSupport
+  - GameSystem.LightBoardPort
+  - GameSystem.TouchPanelPort
+  - GameSystem.TouchPanelBaudRate
+  - UX.HardwareAlert
+
+解锁与省时:
   - GameSystem.Unlock
+  - Tweaks.TimeSaving.IWontTapOrSlideVigorously
   - Tweaks.TimeSaving.EntryToMusicSelection
-  - Tweaks.TimeSaving.ExitToSave
   - Tweaks.TimeSaving.SkipEventInfo
   - Tweaks.TimeSaving.SkipTrackStart
+  - Tweaks.TimeSaving.ExitToSave
   - Tweaks.TimeSaving.SkipGoodbyeScreen
-  - Tweaks.TimeSaving.IWontTapOrSlideVigorously
   - UX.QuickEndPlay
-  - GameSystem.AddPlayCountWhenQuickRetry
+  - UX.OneKeyEntryEnd
+  - UX.OneKeyRetrySkip
+
+选曲界面:
+  - UX.HideSelfMadeCharts
+  - UX.SelectionDetail
 
 美化:
+  - Fancy.GamePlay.HideHanabi
   - GameSystem.Assets.Fonts
   - Fancy.CustomLogo
   - Fancy.CustomPlaceName
@@ -45,60 +86,21 @@
   - Fancy.GamePlay.SlideFadeInTweak
   - Fancy.GamePlay.SlideLayerReverse
   - UX.FestaControl
-
-实用工具:
-  - UX.HideSelfMadeCharts
-  - UX.JudgeAccuracyInfo
-  - UX.PracticeMode
-  - UX.SelectionDetail
-  - UX.DisableLightOutGame
-  - Fancy.GamePlay.HideHanabi
-  - Fancy.GamePlay.JudgeDisplay4B
-  - Utils.DisplayTouchInGame
-  - Utils.UnstableRate
-  - UX.FixTrackNumDisplay
-  - Utils.LedOffOnQuit
-
-系统修改:
-  - GameSystem.Window
-  - Utils.ScreenPositionAdjust
-  - GameSettings.JudgeAdjust
-  - GameSystem.Sound
-  - GameSystem.SoundRouting
-  - GameSystem.HeadphoneVolumeMultiply
-  - GameSystem.VolumeSync
-  - GameSystem.CustomCameraId
-  - GameSystem.ExteraMouseInput
-  - Utils.FreedomTimer
-  - Tweaks.LedBrightnessControl
+  - Fancy.CustomIntroCinematic
 
 调试工具:
   - Utils.AntiLag
   - Tweaks.LockFrameRate
-  - Tweaks.ResetTouch
-  - Utils.DisplayFrameRate
   - Utils.LogUserId
   - Utils.LogNetworkRequests
-  - UX.HardwareAlert
-
-输入和灵敏度:
-  - GameSystem.AdxHidInput
-  - GameSystem.MaimollerIO
-  - GameSystem.KeyMap
-  - GameSettings.TouchSensitivity
 
 高级设置:
   - Fancy.HideMask
-  - GameSystem.OldCabLightBoardSupport
-  - GameSystem.LightBoardPort
-  - GameSystem.TouchPanelPort
-  - GameSystem.TouchPanelBaudRate
-  - GameSystem.SkipBoardNoCheck
   - Tweaks.TimeSaving.CheckSkip
   - Utils.InstantQuit
   - Fancy.Triggers
 
-过新过热:
+过新过热（实验性）:
   - Fancy.SetFade
   - Fancy.CustomTrackStartDiff
   - Fancy.GamePlay.BreakSlideJudgeBlink
@@ -110,7 +112,6 @@
   - Fancy.GamePlay.FixJudgeTouchHoldInNormalArea
   - Fancy.GamePlay.ReviveFinaleVSlide
   - Fancy.GamePlay.TapInHoldFix
-  - Fancy.CustomIntroCinematic
   - Fancy.TrackCamouflage
   - Fancy.ResourcesOverride
 
@@ -123,6 +124,8 @@
   - GameSystem.OptionLoadFix
   - Tweaks.SkipUserVersionCheck
   - UX.DontRuinMyAccount
+  - GameSystem.AddPlayCountWhenQuickRetry
+  - UX.FixTrackNumDisplay
   - UX.Hide1879
   - UX.GrantFinalGateKey
   - Fancy.GamePlay.ExtendNotesPool
@@ -152,7 +155,6 @@
   - GameSystem.HeadphoneVolumeMultiply
   - GameSystem.ExteraMouseInput
   - UX.HardwareAlert
-  - GameSystem.SkipBoardNoCheck
   - Fancy.SetFade
   - Fancy.CustomTrackStartDiff
   - Fancy.GamePlay.BreakSlideJudgeBlink
@@ -164,6 +166,7 @@
   - Fancy.GamePlay.FixJudgeTouchHoldInNormalArea
   - Fancy.GamePlay.ReviveFinaleVSlide
   - UX.DontRuinMyAccount
+  - UX.CustomFnToKeyboard
   - UX.Hide1879
   - UX.GrantFinalGateKey
   - Fancy.GamePlay.TapInHoldFix
