@@ -105,7 +105,7 @@ public class NextTrackTips
         );
 
         // Some hacks to force the layout and "fix" spacing
-        var winLayout = window.transform.Find("IMG_Window").gameObject.GetComponent<HorizontalLayoutGroup>();
+        var winLayout = window.transform.Find("IMG_Window").GetComponent<HorizontalLayoutGroup>();
         winLayout.spacing = 0.0f;
         winLayout.padding = new RectOffset(40, 40, 40, 40);
 
