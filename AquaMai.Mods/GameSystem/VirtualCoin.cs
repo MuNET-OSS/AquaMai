@@ -74,8 +74,9 @@ public static class VirtualCoin
         """
         HTTP服务监听的端口
         """)]
-    private static readonly int Prot = 7654;
+    private static readonly int Port = 7654;
 
+    private static readonly int Prot = Port;
     [ConfigEntry(
         "密码验证",
         """
