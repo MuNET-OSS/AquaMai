@@ -76,6 +76,7 @@ public static class VirtualCoin
         """)]
     private static readonly int Port = 7654;
 
+    private static readonly int Prot = Port;
     [ConfigEntry(
         "密码验证",
         """
