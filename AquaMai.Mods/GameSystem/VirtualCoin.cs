@@ -74,7 +74,7 @@ public static class VirtualCoin
         """
         HTTP服务监听的端口
         """)]
-    private static readonly int Prot = 7654;
+    private static readonly int Port = 7654;
 
     [ConfigEntry(
         "密码验证",
@@ -113,7 +113,7 @@ public static class VirtualCoin
         {
             CreditHttpServerHost.StartOnce();
             MelonModLogger.Msg("[VirtualCoin] HTTP Server started: " +
-                               (CreditHttpServerHost.IsRunning ? $"Success on {Prot}" : "Failed"));
+                               (CreditHttpServerHost.IsRunning ? $"Success on {Port}" : "Failed"));
         }
     }
 
@@ -394,9 +394,9 @@ public static class VirtualCoin
 
         private static int GetPort()
         {
-            if (Prot > 0 && Prot <= 65535)
+            if (Port > 0 && Port <= 65535)
             {
-                return Prot;
+                return Port;
             }
 
             return 6543;
