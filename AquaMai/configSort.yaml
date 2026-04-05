@@ -22,6 +22,7 @@
   - GameSystem.KeyMap
   - GameSettings.TouchSensitivity
   - GameSystem.ExteraMouseInput
+  - GameSystem.VirtualCoin
 
 判定:
   - GameSettings.JudgeAdjust
@@ -174,4 +175,5 @@
   - Fancy.TrackCamouflage
   - Fancy.ResourcesOverride
   - GameSystem.OldCabLightBoardSupport
+  - GameSystem.VirtualCoin
 
