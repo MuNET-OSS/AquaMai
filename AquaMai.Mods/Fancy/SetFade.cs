@@ -4,7 +4,6 @@ using AquaMai.Core.Helpers;
 using Process;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Reflection;
 using System;
 using MelonLoader;
 
@@ -44,20 +43,21 @@ public class SetFade
         bool areSubBGsValid;
         bool isFadeTypeValid;
 
-        if (GameInfo.GameVersion != 26000)
+        subBGs[0] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_01");
+        subBGs[1] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_02");
+        areSubBGsValid = subBGs[0] != null && subBGs[1] != null;
+        isFadeTypeValid = FadeType == 0 || FadeType == 1;
+
+        // make it future proof maybe?
+        if (GameInfo.GameVersion >= 26000)
         {
-            subBGs[0] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_01");
-            subBGs[1] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_02");
-            areSubBGsValid = subBGs[0] != null && subBGs[1] != null;
-            isFadeTypeValid = FadeType == 0 || FadeType == 1;
-        }
-        else
-        {
-            subBGs[0] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_01");
-            subBGs[1] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_02");
-            subBGs[2] = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_03");
-            areSubBGsValid = subBGs[0] != null && subBGs[1] != null && subBGs[2] != null;
-            isFadeTypeValid = FadeType == 0 || FadeType == 1 || FadeType == 2;
+            var festaSubBG = Resources.Load<Sprite>("Process/ChangeScreen/Sprites/Sub_03");
+            if (festaSubBG != null)
+            {
+                subBGs[2] = festaSubBG;
+                areSubBGsValid = areSubBGsValid && subBGs[2] != null;
+                isFadeTypeValid = isFadeTypeValid || FadeType == 2;
+            }
         }
 
         if (!areSubBGsValid)
