@@ -86,7 +86,7 @@ public class OneKeyEntryEnd
                         SharedInstances.ProcessDataContainer.processManager.AddProcess(new FadeProcess(SharedInstances.ProcessDataContainer, process.Process,
                             new UnlockMusicProcess(SharedInstances.ProcessDataContainer)));
                     }
-                    break;
+                    return; // 执行上面的AddProcess操作，会引起processList中链表中内容的改变，foreach继续遍历就会`System.InvalidOperationException: Collection was modified`. 但是反正该做的事已经做完了，所以直接return就好
             }
         }
 
@@ -97,4 +97,16 @@ public class OneKeyEntryEnd
                 new MusicSelectProcess(SharedInstances.ProcessDataContainer)));
         }
     }
+    
+    [EnableGameVersion(26500, noWarn: true)]
+    [HarmonyPatch(typeof(NetDataManager), "GetGuestLogId")]
+    [HarmonyFinalizer]
+    public static Exception GetGuestLogIdFix(Exception __exception, ref ulong __result)
+    {
+        // 如果在游客模式下，一首歌都没打就跳关了：
+        // NetDataManager.GetGuestLogId中会调用Singleton<GamePlayManager>.Instance.GetGameScore，这个函数查不到对应的GameScoreList对象，就会返回null；于是就NPE了
+        // 我们则捕获这里的异常，返回数字0（这正是1.60之前的行为）
+        if (__exception != null) __result = 0L;
+        return null; 
+    } 
 }
