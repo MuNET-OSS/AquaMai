@@ -20,6 +20,7 @@
 
 输入设置:
   - GameSystem.KeyMap
+  - GameSystem.TouchAreaRemapper
   - GameSettings.TouchSensitivity
   - GameSystem.ExteraMouseInput
   - GameSystem.VirtualCoin
@@ -176,4 +177,3 @@
   - Fancy.ResourcesOverride
   - GameSystem.OldCabLightBoardSupport
   - GameSystem.VirtualCoin
-

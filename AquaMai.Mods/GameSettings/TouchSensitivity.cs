@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Reflection;
 using AquaMai.Config.Attributes;
+using AquaMai.Mods.GameSystem;
 using HarmonyLib;
 using IO;
 using Manager;
@@ -140,7 +141,7 @@ public class TouchSensitivity
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(NewTouchPanel), "SetTouchPanelSensitivity")]
-    public static void SetTouchPanelSensitivityPrefix(List<byte> sensitivity)
+    public static void SetTouchPanelSensitivityPrefix(List<byte> sensitivity, uint ____monitorIndex)
     {
         var configType = typeof(TouchSensitivity);
         for (var i = 0; i < 34; i++)
@@ -148,7 +149,10 @@ public class TouchSensitivity
             var area = (InputManager.TouchPanelArea)i;
             var field = configType.GetField(area.ToString(), BindingFlags.NonPublic | BindingFlags.Static);
             var value = (byte)field.GetValue(null);
-            sensitivity[i] = value;
+            var targetIndex = TouchAreaRemapper.TryGetReportedAreaIndex(____monitorIndex, i, out var reportedIndex)
+                ? reportedIndex
+                : i;
+            sensitivity[targetIndex] = value;
         }
         MelonLogger.Msg("[TouchSensitivity] Applied");
     }
