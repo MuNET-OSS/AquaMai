@@ -1,4 +1,6 @@
-﻿using AquaMai.Core.Attributes;
+﻿using System.Collections.Generic;
+using System.Reflection.Emit;
+using AquaMai.Core.Attributes;
 using AquaMai.Config.Attributes;
 using HarmonyLib;
 using MAI2.Util;
@@ -48,5 +50,31 @@ public class QuickRetry
     {
         if (____pushTimer < 500) return;
         Singleton<GamePlayManager>.Instance.SetQuickRetryFrag(flag: true);
+    }
+
+    // if (GameManager.GetFreedomModeMSec() > 0)
+    public static long GetFreedomModeMSecOverride()
+    {
+        return 999999;
+    }
+
+    [HarmonyTranspiler]
+    [HarmonyPatch(typeof(Monitor.QuickRetry), "Execute")]
+    public static IEnumerable<CodeInstruction> ExecuteTranspiler(IEnumerable<CodeInstruction> instructions)
+    {
+        var original = AccessTools.Method(typeof(GameManager), nameof(GameManager.GetFreedomModeMSec));
+        var replacement = AccessTools.Method(typeof(QuickRetry), nameof(GetFreedomModeMSecOverride));
+
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(original))
+            {
+                yield return new CodeInstruction(OpCodes.Call, replacement);
+            }
+            else
+            {
+                yield return instruction;
+            }
+        }
     }
 }
