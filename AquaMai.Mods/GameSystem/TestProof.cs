@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Linq;
 using AquaMai.Config.Attributes;
 using AquaMai.Config.Types;
@@ -58,6 +57,22 @@ public class TestProof
         zh: "修改为 Test 以外的值来实现长按特定的键进入游戏测试模式，这样 Test 键就可以完全用来实现自定义功能了")]
     private static readonly KeyCodeOrName testKey = KeyCodeOrName.Test;
 
+    private static bool _inGameMainObjectUpdate;
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(GameMainObject), "Update")]
+    public static void PreGameMainObjectUpdate()
+    {
+        _inGameMainObjectUpdate = true;
+    }
+
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(GameMainObject), "Update")]
+    public static void PostGameMainObjectUpdate()
+    {
+        _inGameMainObjectUpdate = false;
+    }
+
     [HarmonyPrefix]
     [HarmonyPatch(typeof(InputManager), "GetSystemInputDown")]
     public static bool GetSystemInputDown(ref bool __result, InputManager.SystemButtonSetting button, bool[] ___SystemButtonDown)
@@ -66,10 +81,7 @@ public class TestProof
         if (button != InputManager.SystemButtonSetting.ButtonTest)
             return false;
 
-        var stackTrace = new StackTrace(); // get call stack
-        var stackFrames = stackTrace.GetFrames(); // get method calls (frames)
-
-        if (stackFrames.Any(it => it.GetMethod().Name == "DMD<Main.GameMainObject::Update>"))
+        if (_inGameMainObjectUpdate)
         {
             __result = KeyListener.GetKeyDownOrLongPress(testKey, true);
         }
