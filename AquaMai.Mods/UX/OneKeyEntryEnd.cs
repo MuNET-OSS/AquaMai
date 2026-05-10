@@ -93,8 +93,8 @@ public class OneKeyEntryEnd
         if (processToRelease != null)
         {
             GameManager.SetMaxTrack();
-            // 消息ID 30001 代表隐藏 _creditContoroller (Typo in Assembly-CSharp)
-            SharedInstances.ProcessDataContainer.processManager.SendMessage(new Message(ProcessType.CommonProcess, 30001));
+            // 将 CreditController 移动到副屏
+            SharedInstances.ProcessDataContainer.processManager.SendMessage(new Message(ProcessType.CommonProcess, CommonProcess.MessageID_CreditSub));
             SharedInstances.ProcessDataContainer.processManager.AddProcess(new FadeProcess(SharedInstances.ProcessDataContainer, processToRelease,
                 new MusicSelectProcess(SharedInstances.ProcessDataContainer)));
         }
