@@ -56,6 +56,10 @@ public class OneKeyRetrySkip
             var traverse = Traverse.Create(__instance);
             ___container.processManager.SendMessage(____message[0]);
             Singleton<GamePlayManager>.Instance.SetSyncResult(0);
+            for (int i = 0; i < 2; i++)
+            {
+                Singleton<GamePlayManager>.Instance.GetGameScore(i)?.SetTrackSkip();
+            }
             traverse.Method("SetRelease").GetValue();
         }
 
