@@ -47,40 +47,43 @@ public class HideSelfMadeCharts
         zh: "该文件中每行一个用户 ID，只有这些用户登录时才显示自制谱")]
     private static readonly string selfMadeChartsWhiteListUsersFile = "LocalAssets/SelfMadeChartsWhiteListUsers.txt";
 
-    private static Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData> _musics;
-    private static Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData> _musicsNoneSelfMade;
+    private static Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData> _lastInput;
+    private static Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData> _lastFiltered;
 
     private static bool isShowSelfMadeCharts = true;
     private static bool isForceDisable;
 
     [HarmonyPostfix]
+    [HarmonyPriority(Priority.Last)]
     [HarmonyPatch(typeof(DataManager), "GetMusics")]
     public static void GetMusics(ref Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData> __result, List<string> ____targetDirs)
     {
-        if (_musics is null)
+        if (__result.Count == 0) return;
+
+        var stackFrames = new StackTrace().GetFrames();
+        if (stackFrames.All(it => it.GetMethod().DeclaringType.Name != "MusicSelectProcess")) return;
+        if (isShowSelfMadeCharts && !isForceDisable) return;
+
+        if (!ReferenceEquals(_lastInput, __result))
         {
-            // init musics for the first time
-            if (__result.Count == 0) return;
-            _musics = __result;
+            var officialDirs = ____targetDirs
+                .Where(it => File.Exists(Path.Combine(it, "DataConfig.xml")) || File.Exists(Path.Combine(it, "OfficialChartsMark.txt")))
+                .ToList();
             var nonSelfMadeList = new SortedDictionary<int, Manager.MaiStudio.MusicData>();
-            var officialDirs = ____targetDirs.Where(it => File.Exists(Path.Combine(it, "DataConfig.xml")) || File.Exists(Path.Combine(it, "OfficialChartsMark.txt")));
             foreach (var music in __result)
             {
-                if (officialDirs.Any(it => MusicDirHelper.LookupPath(music.Value).StartsWith(it)))
+                var path = MusicDirHelper.LookupPath(music.Value);
+                if (path == null || officialDirs.Any(d => path.StartsWith(d)))
                 {
                     nonSelfMadeList.Add(music.Key, music.Value);
                 }
             }
-
-            _musicsNoneSelfMade = new Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData>(nonSelfMadeList);
-            MelonLogger.Msg($"[HideSelfMadeCharts] All music count: {__result.Count}, Official music count: {_musicsNoneSelfMade.Count}");
+            _lastFiltered = new Safe.ReadonlySortedDictionary<int, Manager.MaiStudio.MusicData>(nonSelfMadeList);
+            _lastInput = __result;
+            MelonLogger.Msg($"[HideSelfMadeCharts] Rebuilt filter: input={__result.Count}, non-self-made={_lastFiltered.Count}");
         }
 
-        var stackTrace = new StackTrace(); // get call stack
-        var stackFrames = stackTrace.GetFrames(); // get method calls (frames)
-        if (stackFrames.All(it => it.GetMethod().DeclaringType.Name != "MusicSelectProcess")) return;
-        if (isShowSelfMadeCharts && !isForceDisable) return;
-        __result = _musicsNoneSelfMade;
+        __result = _lastFiltered;
     }
 
     [HarmonyPostfix]
