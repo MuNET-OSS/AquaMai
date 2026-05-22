@@ -140,6 +140,7 @@
   - Utils.ShowErrorLog
   - GameSettings.ForceAsServer
   - GameSystem.RemoveEncryption
+  - Tweaks.BlockAmDaemonError
 
 社区功能:
   - GameSystem.VolumeSync
@@ -177,3 +178,4 @@
   - Fancy.ResourcesOverride
   - GameSystem.OldCabLightBoardSupport
   - GameSystem.VirtualCoin
+  - Tweaks.BlockAmDaemonError
