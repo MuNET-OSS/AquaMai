@@ -69,8 +69,11 @@ public class BlockAmDaemonError
                     nameof(NewTouchPanel.GetLastErrorPs)))),
                 new CodeMatch(i => i.Calls(AccessTools.Method(
                     typeof(AMDaemon.Error), "Set", new[] { typeof(int) })))
-            )
-            .ThrowIfInvalid("Could not find call to TouchPanel AMDeamon.Error.Set")
+            );
+        if (!codeMatcher.IsValid)
+            return instructions;
+
+        codeMatcher.ThrowIfInvalid("Could not find call to TouchPanel AMDaemon.Error.Set")
             .SetOpcodeAndAdvance(OpCodes.Nop)
             .SetOpcodeAndAdvance(OpCodes.Nop);
 
