@@ -37,6 +37,14 @@
     <ProjectReference Include="../AquaMai.Config/AquaMai.Config.csproj" />
     <ProjectReference Include="../AquaMai.Core/AquaMai.Core.csproj" />
     <ProjectReference Include="../AquaMai.Mods/AquaMai.Mods.csproj" />
+
+    <!-- Build-order-only references: not linked, but ensure AquaMai.Build and AquaMai.ErrorReport's building finish before the main project. Otherwise, the build may fail. -->
+    <ProjectReference Include="../AquaMai.Build/AquaMai.Build.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="../AquaMai.ErrorReport/AquaMai.ErrorReport.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
