@@ -67,6 +67,15 @@ public class PracticeMode
         repeatEnd = -1;
     }
 
+    public static void TogglePause()
+    {
+        DebugFeature.Pause = !DebugFeature.Pause;
+        if (!DebugFeature.Pause)
+        {
+            Seek(0);
+        }
+    }
+
     public static void GameCtrlResetOptionSpeed()
     {
         foreach (var g in gameCtrl)
