@@ -36,6 +36,12 @@ public class PracticeMode
     [ConfigEntry]
     public static readonly bool longPress = false;
 
+    [ConfigEntry(
+        name: "仅自由模式可用",
+        en: "Only allow Practice Mode in Freedom Mode while time remains.",
+        zh: "仅在自由模式且时间未耗尽时允许使用练习模式")]
+    public static readonly bool onlyInFreedomMode = false;
+
     public static double repeatStart = -1;
     public static double repeatEnd = -1;
     public static float speed = 1;
@@ -43,6 +49,19 @@ public class PracticeMode
     private static List<MovieMaterialMai2> movie;
     private static GameCtrl[] gameCtrl = new GameCtrl[2];
     public static bool keepNoteSpeed = false;
+    
+    private static void ClearPracticeEffects()
+    {
+        // 清除练习模式的所有效果。涉及的效果有四种：UI界面、循环、速度、暂停。
+        if (ui != null)
+        {
+            UnityEngine.Object.Destroy(ui);
+            ui = null;
+        }
+        if (repeatStart >= 0 || repeatEnd >= 0) ClearRepeat();
+        if (speed != 1f) SpeedReset();
+        if (DebugFeature.Pause) TogglePause();
+    }
 
     public static void SetRepeatEnd(double time)
     {
@@ -178,6 +197,8 @@ public class PracticeMode
 
     public static PracticeModeUI ui;
 
+    private static long prevFreedomModeMSec = -1; // 上一帧时，自由模式的剩余秒数
+
     [HarmonyPatch]
     public class PatchNoteSpeed
     {
@@ -201,7 +222,9 @@ public class PracticeMode
         repeatStart = -1;
         repeatEnd = -1;
         speed = 1;
+        keepNoteSpeed = false;
         ui = null;
+        if (GameManager.IsFreedomMode) prevFreedomModeMSec = GameManager.GetFreedomModeMSec();
     }
 
     [HarmonyPatch(typeof(GameProcess), "OnRelease")]
@@ -211,6 +234,7 @@ public class PracticeMode
         repeatStart = -1;
         repeatEnd = -1;
         speed = 1;
+        keepNoteSpeed = false;
         ui = null;
     }
 
@@ -237,9 +261,18 @@ public class PracticeMode
     [HarmonyPostfix]
     public static void GameProcessPostUpdate(GameProcess __instance, GameMonitor[] ____monitors)
     {
-        if (KeyListener.GetKeyDownOrLongPress(key, longPress) && ui is null)
+        if (KeyListener.GetKeyDownOrLongPress(key, longPress) && ui is null && 
+            (!onlyInFreedomMode || (GameManager.IsFreedomMode && GameManager.GetFreedomModeMSec() > 0))) // onlyInFreedomMode=true情况，则额外检查是否在练习模式内、且时间有剩余，如果不满足则不开启UI。
         {
             ui = ____monitors[0].gameObject.AddComponent<PracticeModeUI>();
+        }
+        
+        if (onlyInFreedomMode && GameManager.IsFreedomMode)
+        {
+            var currentFreedomModeMSec = GameManager.GetFreedomModeMSec();
+            if (prevFreedomModeMSec > 0 && currentFreedomModeMSec <= 0)
+                ClearPracticeEffects(); // 如果这一帧内、练习模式的时间刚好归零了：则清空练习模式的一切效果。
+            prevFreedomModeMSec = currentFreedomModeMSec;
         }
 
         if (repeatStart >= 0 && repeatEnd >= 0)
