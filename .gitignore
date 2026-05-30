@@ -375,4 +375,5 @@ tools
 AquaMai/BuildInfo.g.cs
 .idea
 .sisyphus
+.omo
 *.lscache
