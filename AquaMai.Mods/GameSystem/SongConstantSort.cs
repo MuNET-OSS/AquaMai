@@ -164,8 +164,8 @@ public class SongConstantSort
     [HarmonyPatch]
     public static class NavigationPatches
     {
-        private static readonly FieldInfo _beforeSortField =
-            typeof(Process.MusicSelectProcess).GetField("_beforeCategorySortSetting",
+        private static readonly FieldInfo _sortField =
+            typeof(Process.MusicSelectProcess).GetField(GameInfo.GameVersion >= 26500 ? "_beforeCategorySortSetting" : "_categorySortSetting",
                 BindingFlags.NonPublic | BindingFlags.Instance);
 
         [HarmonyPatch(typeof(Process.MusicSelectProcess), "AddSort")]
@@ -173,9 +173,9 @@ public class SongConstantSort
         public static bool AddSort_Prefix(Process.MusicSelectProcess __instance, DB.SortRootID root)
         {
             if (root != DB.SortRootID.Tab) return true;
-            int next = (int)(DB.SortTabID)_beforeSortField.GetValue(__instance) + 1;
+            int next = (int)(DB.SortTabID)_sortField.GetValue(__instance) + 1;
             if (next >= ConstTabId.End) next = ConstTabId.Value;
-            _beforeSortField.SetValue(__instance, (DB.SortTabID)next);
+            _sortField.SetValue(__instance, (DB.SortTabID)next);
             return false;
         }
     }
