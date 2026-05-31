@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.IO.Compression;
 using System.Reflection;
 using AquaMai.Config.Attributes;
 using HarmonyLib;
@@ -12,6 +13,7 @@ using Monitor;
 using Process;
 using UnityEngine;
 using Util;
+using BuildInfo = AquaMai.Core.BuildInfo;
 
 namespace AquaMai.Mods.GameSystem;
 
@@ -21,15 +23,8 @@ namespace AquaMai.Mods.GameSystem;
     zh: "在选曲界面添加按谱面定数排序的标签页")]
 public class SongConstantSort
 {
-    [ConfigEntry(
-        name: "自定义贴图目录",
-        en: "Directory containing custom .ab sprite bundles for constant tabs.",
-        zh: "存放定数标签自定义贴图 (.ab) 的目录")]
-    private static readonly string spriteDir = "LocalAssets";
-
     public static void OnBeforePatch()
     {
-        Directory.CreateDirectory(spriteDir);
         ConstNameStore.SpriteProvider = ConstSpriteCache.GetSprite;
         MelonLogger.Msg("[SongConstantSort] Initialized");
     }
@@ -46,40 +41,45 @@ public class SongConstantSort
         private static Dictionary<int, Sprite> _sprites;
         private static bool _loaded;
 
+        private static Stream GetAssetBundleStream()
+        {
+            var s = BuildInfo.ModAssembly.Assembly.GetManifestResourceStream("level.ab");
+            if (s != null)
+            {
+                return s;
+            }
+
+            s = BuildInfo.ModAssembly.Assembly.GetManifestResourceStream("level.ab.compressed");
+            return new DeflateStream(s, CompressionMode.Decompress);
+        }
+
         public static Sprite GetSprite(int categoryId)
         {
             if (!_loaded)
             {
                 _loaded = true;
                 _sprites = new Dictionary<int, Sprite>();
-                if (Directory.Exists(spriteDir))
+                try
                 {
-                    foreach (string abPath in Directory.GetFiles(spriteDir, "*.ab"))
-                    {
-                        try
-                        {
-                            var bundle = AssetBundle.LoadFromFile(abPath);
-                            if (bundle == null) continue;
+                    using var stream = GetAssetBundleStream();
+                    if (stream == null) return null;
+                    var bundle = AssetBundle.LoadFromStream(stream);
+                    if (bundle == null) return null;
 
-                            foreach (string assetName in bundle.GetAllAssetNames())
-                            {
-                                var sprite = bundle.LoadAsset<Sprite>(assetName);
-                                if (sprite == null) continue;
-                                string fname = Path.GetFileNameWithoutExtension(assetName);
-                                string numPart = fname.Replace("const_", "").Replace("_", "");
-                                if (int.TryParse(numPart, out int id))
-                                    _sprites[id] = sprite;
-                            }
-                            bundle.Unload(false);
-                            MelonLogger.Msg("[SongConstantSort] Loaded: " + abPath);
-                        }
-                        catch (Exception ex)
-                        {
-                            MelonLogger.Warning("[SongConstantSort] Failed to load AB: " + abPath + " - " + ex.Message);
-                        }
+                    foreach (string assetName in bundle.GetAllAssetNames())
+                    {
+                        var sprite = bundle.LoadAsset<Sprite>(assetName);
+                        if (sprite == null) continue;
+                        string fname = Path.GetFileNameWithoutExtension(assetName);
+                        string numPart = fname.Replace("const_", "").Replace("_", "");
+                        if (int.TryParse(numPart, out int id))
+                            _sprites[id] = sprite;
                     }
                 }
-                MelonLogger.Msg("[SongConstantSort] Const sprite cache: " + _sprites.Count + " sprites loaded");
+                catch (Exception ex)
+                {
+                    MelonLogger.Warning("[SongConstantSort] Failed to load AB: " + ex.Message);
+                }
             }
             return _sprites.TryGetValue(categoryId, out Sprite s) ? s : null;
         }
@@ -88,11 +88,11 @@ public class SongConstantSort
     [HarmonyPatch]
     public static class SortTabPatches
     {
-        [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnd", new System.Type[0])]
+        [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnd", [])]
         [HarmonyPrefix]
         public static bool GetEnd_Static(ref int __result) { __result = 7; return false; }
 
-        [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnd", new System.Type[] { typeof(DB.SortTabID) })]
+        [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnd", [typeof(DB.SortTabID)])]
         [HarmonyPrefix]
         public static bool GetEnd_Instance(ref int __result) { __result = 7; return false; }
 
