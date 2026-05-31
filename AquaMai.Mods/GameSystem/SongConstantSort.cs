@@ -20,8 +20,8 @@ namespace AquaMai.Mods.GameSystem;
 
 [ConfigSection(
     name: "定数排序",
-    en: "Add a constant difficulty sort tab to the music selection screen.",
-    zh: "在选曲界面添加按谱面定数排序的标签页")]
+    en: "Sorts the song list by precise difficulty constants. Please switch to this sorting mode in game.",
+    zh: "按照细化定数来排序乐曲列表，请在游戏内切换至该排列模式")]
 public class SongConstantSort
 {
     public static void OnBeforePatch()
