@@ -52,14 +52,13 @@ public class PracticeMode
     
     private static void ClearPracticeEffects()
     {
-        // 清除练习模式的所有效果。涉及的效果有五种：UI界面、循环、速度保持、速度、暂停。
+        // 清除练习模式的所有效果。涉及的效果有四种：UI界面、循环、速度、暂停。
         if (ui != null)
         {
             UnityEngine.Object.Destroy(ui);
             ui = null;
         }
         if (repeatStart >= 0 || repeatEnd >= 0) ClearRepeat();
-        keepNoteSpeed = false;
         if (speed != 1f) SpeedReset();
         if (DebugFeature.Pause) TogglePause();
     }
@@ -223,7 +222,6 @@ public class PracticeMode
         repeatStart = -1;
         repeatEnd = -1;
         speed = 1;
-        keepNoteSpeed = false;
         ui = null;
         prevFreedomModeMSec = GameManager.IsFreedomMode ? GameManager.GetFreedomModeMSec() : -1;
     }
@@ -235,7 +233,6 @@ public class PracticeMode
         repeatStart = -1;
         repeatEnd = -1;
         speed = 1;
-        keepNoteSpeed = false;
         ui = null;
         prevFreedomModeMSec = -1;
     }
