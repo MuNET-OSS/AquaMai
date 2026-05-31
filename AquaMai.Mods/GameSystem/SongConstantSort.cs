@@ -9,6 +9,7 @@ using MAI2.Util;
 using Manager;
 using MelonLoader;
 using Monitor;
+using Process;
 using UnityEngine;
 using Util;
 
@@ -24,7 +25,7 @@ public class SongConstantSort
         name: "自定义贴图目录",
         en: "Directory containing custom .ab sprite bundles for constant tabs.",
         zh: "存放定数标签自定义贴图 (.ab) 的目录")]
-    private static readonly string spriteDir = "Mods\\SongConstantSort\\Sprites";
+    private static readonly string spriteDir = "LocalAssets";
 
     public static void OnBeforePatch()
     {
@@ -234,9 +235,19 @@ public class SongConstantSort
 
                             int constKey = notes.level * 10 + notes.levelDecimal;
 
-                            var detail = cd.msDetailData;
-                            detail.musicId = musicId;
-                            detail.difficultyId = diff;
+                            var detail = new MusicSelectProcess.MusicSelectDetailData
+                            {
+                                musicId = musicId,
+                                difficultyId = diff,
+                                startLife = cd.msDetailData.startLife,
+                                challengeUnlockDiff = cd.msDetailData.challengeUnlockDiff,
+                                nextRelaxDay = cd.msDetailData.nextRelaxDay,
+                                infoEnable = cd.msDetailData.infoEnable,
+                                jumpOtherCategoryStandard = cd.msDetailData.jumpOtherCategoryStandard,
+                                jumpOtherCategoryDeluxe = cd.msDetailData.jumpOtherCategoryDeluxe,
+                                jumpOtherCategoryLevelStd = cd.msDetailData.jumpOtherCategoryLevelStd,
+                                jumpOtherCategoryLevelDx = cd.msDetailData.jumpOtherCategoryLevelDx,
+                            };
 
                             int dummy = -1;
                             if (!grouped.ContainsKey(constKey))
@@ -321,7 +332,7 @@ public class SongConstantSort
             if (level > 15) level = 15;
             bool isPlus = (categoryID % 10) >= 7 && level >= 7;
             if (level < 7) return level;
-            if (isPlus)  return 2 * level - 6;
+            if (isPlus) return 2 * level - 6;
             return 2 * level - 7;
         }
 
