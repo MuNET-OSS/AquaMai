@@ -80,10 +80,16 @@ jobs:
         if: github.event_name != 'pull_request_target' && github.ref == 'refs/heads/main'
         run: |
           $Uri = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMediaGroup"
+          $GitDescribe = ConvertFrom-Json @'
+          ${{ toJson(env.GIT_DESCRIBE) }}
+          '@
+          $CommitMessage = ConvertFrom-Json @'
+          ${{ toJson(github.event.commits[0].message) }}
+          '@
           $Form = @{
             chat_id = "-1002231087502"
             media = @(
-              @{ type = "document"; media = "attach://aquamai_main"; caption = "${{ env.GIT_DESCRIBE }}`n${{ github.event.commits[0].message }}" },
+              @{ type = "document"; media = "attach://aquamai_main"; caption = "$GitDescribe`n$CommitMessage" },
               @{ type = "document"; media = "attach://aquamai_zh" }
               @{ type = "document"; media = "attach://aquamai_en" }
             ) | ConvertTo-Json
