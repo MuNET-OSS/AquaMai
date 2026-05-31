@@ -10,7 +10,6 @@ using MAI2.Util;
 using Manager;
 using MelonLoader;
 using Monitor;
-using Process;
 using UnityEngine;
 using Util;
 using BuildInfo = AquaMai.Core.BuildInfo;
@@ -29,6 +28,9 @@ public class SongConstantSort
         MelonLogger.Msg("[SongConstantSort] Initialized");
     }
 
+    // =================================================================
+    // 共享数据
+    // =================================================================
     private static class ConstNameStore
     {
         public static readonly Dictionary<int, string> NameMap = new Dictionary<int, string>();
@@ -36,6 +38,30 @@ public class SongConstantSort
         public static bool IsActive;
     }
 
+    // =================================================================
+    // 从枚举动态推导定数标签索引, 避免硬编码 6/7
+    // =================================================================
+    private static class ConstTabId
+    {
+        public static readonly int Value = GetUserTabMax() + 1;
+        public static readonly int End = Value + 1;
+
+        private static int GetUserTabMax()
+        {
+            // 只取 Genre~All 之间的真实用户标签, 排除 Begin/End/Invalid
+            int max = int.MinValue;
+            foreach (DB.SortTabID v in Enum.GetValues(typeof(DB.SortTabID)))
+            {
+                if (v < DB.SortTabID.Genre || v > DB.SortTabID.All) continue;
+                if ((int)v > max) max = (int)v;
+            }
+            return max;
+        }
+    }
+
+    // =================================================================
+    // 延迟加载 AssetBundle 贴图缓存 (加 try/finally 释放)
+    // =================================================================
     private static class ConstSpriteCache
     {
         private static Dictionary<int, Sprite> _sprites;
@@ -44,12 +70,9 @@ public class SongConstantSort
         private static Stream GetAssetBundleStream()
         {
             var s = BuildInfo.ModAssembly.Assembly.GetManifestResourceStream("level.ab");
-            if (s != null)
-            {
-                return s;
-            }
-
+            if (s != null) return s;
             s = BuildInfo.ModAssembly.Assembly.GetManifestResourceStream("level.ab.compressed");
+            if (s == null) return null;
             return new DeflateStream(s, CompressionMode.Decompress);
         }
 
@@ -85,51 +108,57 @@ public class SongConstantSort
         }
     }
 
+    // =================================================================
+    // Patch 1: 扩展 SortTabID 枚举系统
+    // =================================================================
     [HarmonyPatch]
     public static class SortTabPatches
     {
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnd", [])]
         [HarmonyPrefix]
-        public static bool GetEnd_Static(ref int __result) { __result = 7; return false; }
+        public static bool GetEnd_Static(ref int __result) { __result = ConstTabId.End; return false; }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnd", [typeof(DB.SortTabID)])]
         [HarmonyPrefix]
-        public static bool GetEnd_Instance(ref int __result) { __result = 7; return false; }
+        public static bool GetEnd_Instance(ref int __result) { __result = ConstTabId.End; return false; }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "IsValid")]
         [HarmonyPrefix]
         public static bool IsValid(DB.SortTabID self, ref bool __result)
         {
-            __result = self >= DB.SortTabID.Genre && (int)self <= 6;
+            __result = self >= DB.SortTabID.Genre && (int)self < ConstTabId.End;
             return false;
         }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetName")]
         [HarmonyPrefix]
         public static bool GetName(DB.SortTabID self, ref string __result)
-        { if ((int)self == 6) { __result = "定数"; return false; } return true; }
+        { if ((int)self == ConstTabId.Value) { __result = "定数"; return false; } return true; }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetDetail")]
         [HarmonyPrefix]
         public static bool GetDetail(DB.SortTabID self, ref string __result)
-        { if ((int)self == 6) { __result = "譜面定数でタブ分けされます"; return false; } return true; }
+        { if ((int)self == ConstTabId.Value) { __result = "譜面定数でタブ分けされます"; return false; } return true; }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetFilePath")]
         [HarmonyPrefix]
         public static bool GetFilePath(DB.SortTabID self, ref string __result)
-        { if ((int)self == 6) { __result = "UI_MSS_Tabimage_01_03"; return false; } return true; }
+        { if ((int)self == ConstTabId.Value) { __result = "UI_MSS_Tabimage_01_03"; return false; } return true; }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnumName")]
         [HarmonyPrefix]
         public static bool GetEnumName(DB.SortTabID self, ref string __result)
-        { if ((int)self == 6) { __result = "Constant"; return false; } return true; }
+        { if ((int)self == ConstTabId.Value) { __result = "Constant"; return false; } return true; }
 
         [HarmonyPatch(typeof(DB.SortTabIDEnum), "GetEnumValue")]
         [HarmonyPrefix]
         public static bool GetEnumValue(DB.SortTabID self, ref int __result)
-        { if ((int)self == 6) { __result = 6; return false; } return true; }
+        { if ((int)self == ConstTabId.Value) { __result = ConstTabId.Value; return false; } return true; }
     }
 
+    // =================================================================
+    // Patch 2: 导航 AddSort/SubSort
+    // =================================================================
     [HarmonyPatch]
     public static class NavigationPatches
     {
@@ -143,7 +172,7 @@ public class SongConstantSort
         {
             if (root != DB.SortRootID.Tab) return true;
             int next = (int)(DB.SortTabID)_beforeSortField.GetValue(__instance) + 1;
-            if (next >= 7) next = 0;
+            if (next >= ConstTabId.End) next = 0;
             _beforeSortField.SetValue(__instance, (DB.SortTabID)next);
             return false;
         }
@@ -154,20 +183,69 @@ public class SongConstantSort
         {
             if (root != DB.SortRootID.Tab) return true;
             int next = (int)(DB.SortTabID)_beforeSortField.GetValue(__instance) - 1;
-            if (next < 0) next = 6;
+            if (next < 0) next = ConstTabId.Value;
             _beforeSortField.SetValue(__instance, (DB.SortTabID)next);
             return false;
         }
     }
 
+    // =================================================================
+    // Patch 3: CategoryTabSort → 定数分组 (克隆 detail 避免原地修改)
+    // =================================================================
     [HarmonyPatch]
     public static class CategoryTabPatches
     {
         private static FieldInfo _combineMusicDataListField;
         private static PropertyInfo _categoryNameListProp;
         private static FieldInfo _categorySortSettingField;
+        private static PropertyInfo _isLevelCategoryProp;
         private static MethodInfo _setSortListMethod;
         private static MethodInfo _addRandomDataMethod;
+        private static bool _reflectionValidated;
+
+        // --- 存档净化 ---
+        private const string PREF_KEY = "SongConstantSort_Active";
+
+        [HarmonyPatch(typeof(Process.MusicSelectProcess), "OnStart")]
+        [HarmonyPostfix]
+        private static void MusicSelectProcess_OnStart(Process.MusicSelectProcess __instance)
+        {
+            if (_categorySortSettingField == null)
+                _categorySortSettingField = typeof(Process.MusicSelectProcess).GetField(
+                    "_categorySortSetting", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (PlayerPrefs.GetInt(PREF_KEY, 0) == 1)
+            {
+                _categorySortSettingField.SetValue(__instance, (DB.SortTabID)ConstTabId.Value);
+                PlayerPrefs.DeleteKey(PREF_KEY);
+                PlayerPrefs.Save();
+            }
+        }
+
+        [HarmonyPatch(typeof(Process.MusicSelectProcess), "OnRelease")]
+        [HarmonyPrefix]
+        private static void MusicSelectProcess_OnRelease(Process.MusicSelectProcess __instance)
+        {
+            if (_categorySortSettingField == null)
+                _categorySortSettingField = typeof(Process.MusicSelectProcess).GetField(
+                    "_categorySortSetting", BindingFlags.NonPublic | BindingFlags.Instance);
+            var setting = (DB.SortTabID)_categorySortSettingField.GetValue(__instance);
+            if ((int)setting == ConstTabId.Value)
+            {
+                _categorySortSettingField.SetValue(__instance, DB.SortTabID.Genre);
+                PlayerPrefs.SetInt(PREF_KEY, 1);
+                PlayerPrefs.Save();
+            }
+        }
+
+        // DTO 导出到服务器前兜底: sortCategorySetting>=6 替换为 Genre(0)
+        [HarmonyPatch(typeof(Net.VO.Mai2.VOExtensions), "Export",
+            [typeof(Manager.UserDatas.UserExtend)])]
+        [HarmonyPostfix]
+        private static void VOExtensions_Export_Postfix(ref Net.VO.Mai2.UserExtend __result)
+        {
+            if ((int)__result.sortCategorySetting >= ConstTabId.Value)
+                __result.sortCategorySetting = DB.SortTabID.Genre;
+        }
 
         [HarmonyPatch(typeof(Process.MusicSelectProcess), "CategoryTabSort")]
         [HarmonyPrefix]
@@ -175,13 +253,13 @@ public class SongConstantSort
             Process.MusicSelectProcess __instance, int player,
             ref SortedList<int, List<Process.MusicSelectProcess.CombineMusicSelectData>> __result)
         {
-            if (_categorySortSettingField == null)
-                _categorySortSettingField = typeof(Process.MusicSelectProcess).GetField(
-                    "_categorySortSetting", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (!_reflectionValidated) ValidateReflection();
+            if (_categorySortSettingField == null) return true;
 
             var sortSetting = (DB.SortTabID)_categorySortSettingField.GetValue(__instance);
+            if ((int)sortSetting != ConstTabId.Value) return true;
 
-            if ((int)sortSetting != 6) return true;
+            _isLevelCategoryProp.SetValue(__instance, true);
 
             ConstNameStore.IsActive = true;
             __result = DoCategoryTabConstant(__instance, player);
@@ -189,11 +267,43 @@ public class SongConstantSort
             return false;
         }
 
+        // Back 时: DifficultySelectSequence 不更新 CurrentCategorySelect/CurrentMusicSelect,
+        // 但 _levelCategoryPositionList 中有所有歌曲×难度的定位信息.
+        // 在 Back 触发前直接用 GetLevelToListPositoin 跳转到正确位置.
+        [HarmonyPatch(typeof(Process.MusicSelectProcess), "IsForceMusicBack", MethodType.Setter)]
+        [HarmonyPrefix]
+        private static void IsForceMusicBack_Set(Process.MusicSelectProcess __instance, bool value)
+        {
+            if (!value) return;
+            if (_categorySortSettingField == null) return;
+            var setting = (DB.SortTabID)_categorySortSettingField.GetValue(__instance);
+            if ((int)setting != ConstTabId.Value) return;
+
+            // 获取新难度 (DifficultySelectSequence 已写入 DifficultySelectIndex)
+            var diffArr = __instance.DifficultySelectIndex;
+            int newDiff = (diffArr != null && __instance.SortDecidePlayer < diffArr.Length)
+                ? diffArr[__instance.SortDecidePlayer] : -1;
+            if (newDiff < 0 || newDiff > 4) return;
+
+            // 获取当前歌曲 ID
+            var musicData = __instance.CombineMusicDataList[__instance.CurrentCategorySelect]
+                [__instance.CurrentMusicSelect].musicSelectData[(int)__instance.ScoreType];
+            int musicId = musicData.MusicData.name.id;
+
+            // 用 _levelCategoryPositionList 跳转到新难度下的位置
+            try
+            {
+                var pos = __instance.GetLevelToListPositoin(musicId, newDiff);
+                __instance.CurrentCategorySelect = pos.Category;
+                __instance.CurrentMusicSelect = pos.Index;
+                __instance.CurrentDifficulty[__instance.SortDecidePlayer] = (Manager.MusicDifficultyID)newDiff;
+            }
+            catch { }
+        }
+
         private static SortedList<int, List<Process.MusicSelectProcess.CombineMusicSelectData>>
             DoCategoryTabConstant(Process.MusicSelectProcess instance, int player)
         {
-            InitReflection();
-
             var musicList = (List<ReadOnlyCollection<Process.MusicSelectProcess.CombineMusicSelectData>>)
                 _combineMusicDataListField.GetValue(instance);
             var categoryNameList = (List<string>)_categoryNameListProp.GetValue(instance);
@@ -235,18 +345,15 @@ public class SongConstantSort
 
                             int constKey = notes.level * 10 + notes.levelDecimal;
 
-                            var detail = new MusicSelectProcess.MusicSelectDetailData
+                            var detail = new Process.MusicSelectProcess.MusicSelectDetailData
                             {
                                 musicId = musicId,
                                 difficultyId = diff,
+                                targetPlayer = cd.msDetailData.targetPlayer,
                                 startLife = cd.msDetailData.startLife,
                                 challengeUnlockDiff = cd.msDetailData.challengeUnlockDiff,
                                 nextRelaxDay = cd.msDetailData.nextRelaxDay,
                                 infoEnable = cd.msDetailData.infoEnable,
-                                jumpOtherCategoryStandard = cd.msDetailData.jumpOtherCategoryStandard,
-                                jumpOtherCategoryDeluxe = cd.msDetailData.jumpOtherCategoryDeluxe,
-                                jumpOtherCategoryLevelStd = cd.msDetailData.jumpOtherCategoryLevelStd,
-                                jumpOtherCategoryLevelDx = cd.msDetailData.jumpOtherCategoryLevelDx,
                             };
 
                             int dummy = -1;
@@ -289,23 +396,51 @@ public class SongConstantSort
             return result;
         }
 
-        private static void InitReflection()
+        // 统一校验所有反射成员, 失败时记录明确错误
+        private static void ValidateReflection()
         {
-            if (_combineMusicDataListField == null)
-                _combineMusicDataListField = typeof(Process.MusicSelectProcess).GetField(
-                    "_combineMusicDataList", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (_categoryNameListProp == null)
-                _categoryNameListProp = typeof(Process.MusicSelectProcess).GetProperty(
-                    "CategoryNameList", BindingFlags.Public | BindingFlags.Instance);
-            if (_setSortListMethod == null)
-                _setSortListMethod = typeof(Process.MusicSelectProcess).GetMethod(
-                    "SetSortList", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (_addRandomDataMethod == null)
-                _addRandomDataMethod = typeof(Process.MusicSelectProcess).GetMethod(
-                    "AddRandomData", BindingFlags.NonPublic | BindingFlags.Instance);
+            _reflectionValidated = true;
+            var type = typeof(Process.MusicSelectProcess);
+
+            _categorySortSettingField = type.GetField(
+                "_categorySortSetting", BindingFlags.NonPublic | BindingFlags.Instance);
+            _combineMusicDataListField = type.GetField(
+                "_combineMusicDataList", BindingFlags.NonPublic | BindingFlags.Instance);
+            _categoryNameListProp = type.GetProperty(
+                "CategoryNameList", BindingFlags.Public | BindingFlags.Instance);
+            _isLevelCategoryProp = type.GetProperty(
+                "IsLevelCategory", BindingFlags.Public | BindingFlags.Instance);
+            _setSortListMethod = type.GetMethod(
+                "SetSortList", BindingFlags.NonPublic | BindingFlags.Instance);
+            _addRandomDataMethod = type.GetMethod(
+                "AddRandomData", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            var missing = new List<string>();
+            if (_categorySortSettingField == null) missing.Add("_categorySortSetting (Field)");
+            if (_combineMusicDataListField == null) missing.Add("_combineMusicDataList (Field)");
+            if (_categoryNameListProp == null) missing.Add("CategoryNameList (Property)");
+            if (_isLevelCategoryProp == null) missing.Add("IsLevelCategory (Property)");
+            if (_setSortListMethod == null) missing.Add("SetSortList (Method)");
+            if (_addRandomDataMethod == null) missing.Add("AddRandomData (Method)");
+
+            if (missing.Count > 0)
+            {
+                string msg = "[SongConstantSort] Reflection bindings FAILED. Missing: " +
+                    string.Join(", ", missing) +
+                    ". The game may have been updated — SongConstantSort needs an update.";
+                Debug.LogError(msg);
+                MelonLogger.Error(msg);
+            }
+            else
+            {
+                MelonLogger.Msg("[SongConstantSort] Reflection bindings OK.");
+            }
         }
     }
 
+    // =================================================================
+    // Patch 4: UI - tab 名称/颜色/精灵
+    // =================================================================
     [HarmonyPatch]
     public static class UIPatches
     {
@@ -332,7 +467,7 @@ public class SongConstantSort
             if (level > 15) level = 15;
             bool isPlus = (categoryID % 10) >= 7 && level >= 7;
             if (level < 7) return level;
-            if (isPlus) return 2 * level - 6;
+            if (isPlus)  return 2 * level - 6;
             return 2 * level - 7;
         }
 
@@ -341,7 +476,7 @@ public class SongConstantSort
         public static bool getTabString_Prefix(MusicSelectMonitor __instance,
             Process.MusicSelectProcess.GenreSelectData data, ref string __result)
         {
-            if ((int)GetCategorySortSetting(__instance) != 6) return true;
+            if ((int)GetCategorySortSetting(__instance) != ConstTabId.Value) return true;
             if (data.isExtra) return true;
             if (ConstNameStore.NameMap.TryGetValue(data.categoryID, out string name))
             {
@@ -357,7 +492,7 @@ public class SongConstantSort
         public static bool getTabColor_Prefix(MusicSelectMonitor __instance,
             Process.MusicSelectProcess.GenreSelectData data, ref Color __result)
         {
-            if ((int)GetCategorySortSetting(__instance) != 6) return true;
+            if ((int)GetCategorySortSetting(__instance) != ConstTabId.Value) return true;
             if (data.isExtra) return true;
             int levelEnum = ConstKeyToLevelEnum(data.categoryID);
             var levelData = Singleton<DataManager>.Instance.GetMusicLevel(levelEnum);
@@ -374,7 +509,7 @@ public class SongConstantSort
         public static bool GetTabSprite_Prefix(MusicSelectMonitor __instance,
             Process.MusicSelectProcess.GenreSelectData data, ref Sprite __result)
         {
-            if ((int)GetCategorySortSetting(__instance) != 6) return true;
+            if ((int)GetCategorySortSetting(__instance) != ConstTabId.Value) return true;
             if (data.isExtra) return true;
 
             if (ConstNameStore.SpriteProvider != null)
