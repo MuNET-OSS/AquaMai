@@ -5,6 +5,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 using AquaMai.Config.Attributes;
+using AquaMai.Core.Helpers;
+using AquaMai.Core.Types;
 using HarmonyLib;
 using MAI2.Util;
 using Manager;
@@ -203,8 +205,8 @@ public class SongConstantSort
         private static MethodInfo _addRandomDataMethod;
         private static bool _reflectionValidated;
 
-        // --- 存档净化 ---
-        private const string PREF_KEY = "SongConstantSort_Active";
+        private const string StorageKey = "SongConstantSort_Active";
+        private static readonly IPersistentStorage Storage = new PlayerPrefsStorage();
 
         [HarmonyPatch(typeof(Process.MusicSelectProcess), "OnStart")]
         [HarmonyPostfix]
@@ -213,11 +215,14 @@ public class SongConstantSort
             if (_categorySortSettingField == null)
                 _categorySortSettingField = typeof(Process.MusicSelectProcess).GetField(
                     "_categorySortSetting", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (PlayerPrefs.GetInt(PREF_KEY, 0) == 1)
+            int player = __instance.SortDecidePlayer;
+            var userData = UserDataManager.Instance.GetUserData(player);
+            if (!userData.IsEntry) return;
+
+            if (Storage.GetInt((uint)player, StorageKey, 0) == 1)
             {
                 _categorySortSettingField.SetValue(__instance, (DB.SortTabID)ConstTabId.Value);
-                PlayerPrefs.DeleteKey(PREF_KEY);
-                PlayerPrefs.Save();
+                __instance.ReCalcGenreSelectData();
             }
         }
 
@@ -229,11 +234,16 @@ public class SongConstantSort
                 _categorySortSettingField = typeof(Process.MusicSelectProcess).GetField(
                     "_categorySortSetting", BindingFlags.NonPublic | BindingFlags.Instance);
             var setting = (DB.SortTabID)_categorySortSettingField.GetValue(__instance);
+            int player = __instance.SortDecidePlayer;
+            var userData = UserDataManager.Instance.GetUserData(player);
+            if (userData.IsEntry)
+            {
+                Storage.SetInt((uint)player, StorageKey, (int)setting == ConstTabId.Value ? 1 : 0);
+            }
+
             if ((int)setting == ConstTabId.Value)
             {
                 _categorySortSettingField.SetValue(__instance, DB.SortTabID.Genre);
-                PlayerPrefs.SetInt(PREF_KEY, 1);
-                PlayerPrefs.Save();
             }
         }
 
