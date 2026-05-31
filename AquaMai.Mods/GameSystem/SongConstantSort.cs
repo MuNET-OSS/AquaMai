@@ -174,18 +174,7 @@ public class SongConstantSort
         {
             if (root != DB.SortRootID.Tab) return true;
             int next = (int)(DB.SortTabID)_beforeSortField.GetValue(__instance) + 1;
-            if (next >= ConstTabId.End) next = 0;
-            _beforeSortField.SetValue(__instance, (DB.SortTabID)next);
-            return false;
-        }
-
-        [HarmonyPatch(typeof(Process.MusicSelectProcess), "SubSort")]
-        [HarmonyPrefix]
-        public static bool SubSort_Prefix(Process.MusicSelectProcess __instance, DB.SortRootID root)
-        {
-            if (root != DB.SortRootID.Tab) return true;
-            int next = (int)(DB.SortTabID)_beforeSortField.GetValue(__instance) - 1;
-            if (next < 0) next = ConstTabId.Value;
+            if (next >= ConstTabId.End) next = ConstTabId.Value;
             _beforeSortField.SetValue(__instance, (DB.SortTabID)next);
             return false;
         }
