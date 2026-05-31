@@ -29,7 +29,19 @@ public class OneKeyRetrySkip
     [ConfigEntry("跳关长按")]
     public static readonly bool skipLongPress = true;
 
+    [ConfigEntry(
+        name: "仅自由模式可重开",
+        en: "Only allow retry in Freedom Mode while time remains.",
+        zh: "仅在自由模式且时间未耗尽时允许一键重试，跳过不受影响")]
+    public static readonly bool allowRetryOnlyInFreedomMode = false;
+
     private static bool dirty = false;
+
+    private static bool IsRetryAllowed()
+    {
+        if (!allowRetryOnlyInFreedomMode) return true;
+        return GameManager.IsFreedomMode && GameManager.GetFreedomModeMSec() > 0;
+    }
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(GameProcess), "OnStart")]
@@ -63,7 +75,8 @@ public class OneKeyRetrySkip
             traverse.Method("SetRelease").GetValue();
         }
 
-        else if (KeyListener.GetKeyDownOrLongPress(retryKey, retryLongPress) && GameInfo.GameVersion >= 23000)
+        else if (KeyListener.GetKeyDownOrLongPress(retryKey, retryLongPress) && GameInfo.GameVersion >= 23000 && 
+                 IsRetryAllowed())
         {
 #if DEBUG
             MelonLogger.Msg("[OneKeyRetrySkip] Retry key pressed.");
