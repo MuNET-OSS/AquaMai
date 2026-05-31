@@ -207,6 +207,7 @@ public class SongConstantSort
 
         private const string StorageKey = "SongConstantSort_Active";
         private static readonly IPersistentStorage Storage = new PlayerPrefsStorage();
+        private const int OtherCategoryKey = 160;
 
         [HarmonyPatch(typeof(Process.MusicSelectProcess), "OnStart")]
         [HarmonyPostfix]
@@ -353,7 +354,7 @@ public class SongConstantSort
                             if (seen.Contains(uniqueKey)) continue;
                             seen.Add(uniqueKey);
 
-                            int constKey = notes.level * 10 + notes.levelDecimal;
+                            int constKey = GetConstCategoryKey(notes.level, notes.levelDecimal);
 
                             var detail = new Process.MusicSelectProcess.MusicSelectDetailData
                             {
@@ -369,8 +370,7 @@ public class SongConstantSort
                             int dummy = -1;
                             if (!grouped.ContainsKey(constKey))
                             {
-                                nameMap[constKey] = string.Format("Lv.{0}.{1}",
-                                    notes.level, notes.levelDecimal);
+                                nameMap[constKey] = GetConstCategoryName(constKey);
                                 grouped[constKey] = new List<Process.MusicSelectProcess.CombineMusicSelectData>();
                             }
                             grouped[constKey].Add(
@@ -404,6 +404,20 @@ public class SongConstantSort
                 result[key] = list;
             }
             return result;
+        }
+
+        private static int GetConstCategoryKey(int level, int levelDecimal)
+        {
+            if (level >= 16) return OtherCategoryKey;
+            if (level < 6) return level * 10;
+            return level * 10 + levelDecimal;
+        }
+
+        private static string GetConstCategoryName(int constKey)
+        {
+            if (constKey == OtherCategoryKey) return "其他";
+            if (constKey < 60) return string.Format("Lv.{0}", constKey / 10);
+            return string.Format("Lv.{0}.{1}", constKey / 10, constKey % 10);
         }
 
         // 统一校验所有反射成员, 失败时记录明确错误
