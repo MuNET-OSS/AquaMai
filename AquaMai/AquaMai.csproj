@@ -82,6 +82,9 @@
     <EmbeddedResource Include="configSort.yaml">
       <LogicalName>configSort.yaml</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="level.ab">
+      <LogicalName>level.ab</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

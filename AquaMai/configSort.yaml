@@ -71,6 +71,7 @@
 选曲界面:
   - UX.HideSelfMadeCharts
   - UX.SelectionDetail
+  - GameSystem.SongConstantSort
 
 美化:
   - Fancy.GamePlay.HideHanabi
