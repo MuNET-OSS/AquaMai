@@ -167,7 +167,9 @@ You can try to solve it yourself. If not, then ask your friends in the community
 Currently Adjusting Block: {0}
 Use arrow keys to move the position
 Current Movement Speed: {1} (Press [ or ] to adjust)
-Press {2} to switch block or exit adjustment mode</value>
+Current Scale: {2}
+Current Scale Step: {3} (Press - or + to adjust)
+Press {4} to switch block or exit adjustment mode</value>
     </data>
     <data name="AutoplayOn" xml:space="preserve">
         <value>AutoPlay On</value>

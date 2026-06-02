@@ -41,8 +41,12 @@ public class ScreenPositionAdjust
     private static Camera camera;
     private static RenderTexture renderTexture;
     private static Transform[] mouseTouchPanels = new Transform[2];
+    private static Vector3[] mouseTouchPanelBaseScales = new Vector3[2];
 
     private static readonly Vector3 mouseTouchPanelsDelta = new Vector3(0, (1920 - 1080) / 2f, 0);
+    private const float MinScale = 0.1f;
+    private const float MaxScale = 4f;
+    private const float ScaleStepPerSpeedUnit = 0.01f;
 
     /// <summary>
     /// 避免一帧延迟
@@ -96,25 +100,50 @@ public class ScreenPositionAdjust
 
     private static float[] offsetX = new float[4];
     private static float[] offsetY = new float[4];
+    private static float[] scale = new float[4];
+
+    private static void ApplyScale(int index)
+    {
+        images[index].localScale = Vector3.one * scale[index];
+        if (index % 2 == 0)
+        {
+            ApplyMouseTouchPanelTransform(index / 2);
+        }
+    }
+
+    private static void ApplyMouseTouchPanelTransform(int player)
+    {
+        var panel = mouseTouchPanels[player];
+        var image = images[player * 2];
+        if (panel == null || image == null) return;
+
+        var imageScale = scale[player * 2];
+        panel.position = image.position + mouseTouchPanelsDelta * imageScale;
+        panel.localScale = mouseTouchPanelBaseScales[player] * imageScale;
+    }
 
     private class AdjustController : MonoBehaviour
     {
         private int index = -1;
         private float speed = 1f;
 
+        private float ScaleStep => speed * ScaleStepPerSpeedUnit;
+
         private void OnGUI()
         {
             if (index == -1) return;
-            var rect = new Rect(0, 0, GuiSizes.FontSize * 50, GuiSizes.FontSize * 15);
+            var rect = new Rect(0, 0, GuiSizes.FontSize * 50, GuiSizes.FontSize * 20);
 
             var player = index < 2 ? "1P" : "2P";
             var sub = index % 2 == 0 ? "Main" : "Sub";
+            var scaleText = $"{scale[index] * 100f:0.##}%";
+            var scaleStepText = $"{ScaleStep * 100f:0.##}%";
 
             var labelStyle = GUI.skin.GetStyle("label");
             labelStyle.fontSize = GuiSizes.FontSize * 2;
             labelStyle.alignment = TextAnchor.MiddleLeft;
             GUI.Box(rect, "");
-            GUI.Label(rect, string.Format(Locale.ScreenPositionAdjustTip, $"{player} {sub}", speed, adjustKey));
+            GUI.Label(rect, string.Format(Locale.ScreenPositionAdjustTip, $"{player} {sub}", speed, scaleText, scaleStepText, adjustKey));
         }
 
         private void Update()
@@ -132,10 +161,11 @@ public class ScreenPositionAdjust
                     {
                         PlayerPrefs.SetFloat($"AquaMaiScreenPositionAdjust-x:{i}", offsetX[i]);
                         PlayerPrefs.SetFloat($"AquaMaiScreenPositionAdjust-y:{i}", offsetY[i]);
+                        PlayerPrefs.SetFloat($"AquaMaiScreenPositionAdjust-scale:{i}", scale[i]);
                     }
                     PlayerPrefs.Save();
-                    mouseTouchPanels[0].position = images[0].position + mouseTouchPanelsDelta;
-                    mouseTouchPanels[1].position = images[2].position + mouseTouchPanelsDelta;
+                    ApplyMouseTouchPanelTransform(0);
+                    ApplyMouseTouchPanelTransform(1);
                     return;
                 }
             }
@@ -144,21 +174,25 @@ public class ScreenPositionAdjust
             {
                 offsetX[index] -= speed;
                 images[index].localPosition -= new Vector3(speed, 0, 0);
+                if (index % 2 == 0) ApplyMouseTouchPanelTransform(index / 2);
             }
             else if (Input.GetKeyDown(KeyCode.RightArrow))
             {
                 offsetX[index] += speed;
                 images[index].localPosition += new Vector3(speed, 0, 0);
+                if (index % 2 == 0) ApplyMouseTouchPanelTransform(index / 2);
             }
             else if (Input.GetKeyDown(KeyCode.UpArrow))
             {
                 offsetY[index] += speed;
                 images[index].localPosition += new Vector3(0, speed, 0);
+                if (index % 2 == 0) ApplyMouseTouchPanelTransform(index / 2);
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 offsetY[index] -= speed;
                 images[index].localPosition -= new Vector3(0, speed, 0);
+                if (index % 2 == 0) ApplyMouseTouchPanelTransform(index / 2);
             }
             else if (Input.GetKeyDown(KeyCode.LeftBracket))
             {
@@ -167,6 +201,16 @@ public class ScreenPositionAdjust
             else if (Input.GetKeyDown(KeyCode.RightBracket))
             {
                 speed *= 2f;
+            }
+            else if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus))
+            {
+                scale[index] = Mathf.Clamp(scale[index] - ScaleStep, MinScale, MaxScale);
+                ApplyScale(index);
+            }
+            else if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.Plus) || Input.GetKeyDown(KeyCode.KeypadPlus))
+            {
+                scale[index] = Mathf.Clamp(scale[index] + ScaleStep, MinScale, MaxScale);
+                ApplyScale(index);
             }
         }
     }
@@ -239,13 +283,17 @@ public class ScreenPositionAdjust
 
                 offsetX[i] = PlayerPrefs.GetFloat($"AquaMaiScreenPositionAdjust-x:{i}", 0);
                 offsetY[i] = PlayerPrefs.GetFloat($"AquaMaiScreenPositionAdjust-y:{i}", 0);
+                scale[i] = Mathf.Clamp(PlayerPrefs.GetFloat($"AquaMaiScreenPositionAdjust-scale:{i}", 1f), MinScale, MaxScale);
                 images[i].localPosition += new Vector3(offsetX[i], offsetY[i], 0);
+                ApplyScale(i);
             }
 
             mouseTouchPanels[0] = left.Find("MouseTouchPanel");
             mouseTouchPanels[1] = right.Find("MouseTouchPanel");
-            mouseTouchPanels[0].position = images[0].position + mouseTouchPanelsDelta;
-            mouseTouchPanels[1].position = images[2].position + mouseTouchPanelsDelta;
+            mouseTouchPanelBaseScales[0] = mouseTouchPanels[0].localScale;
+            mouseTouchPanelBaseScales[1] = mouseTouchPanels[1].localScale;
+            ApplyMouseTouchPanelTransform(0);
+            ApplyMouseTouchPanelTransform(1);
         }
     }
 
