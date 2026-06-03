@@ -189,6 +189,26 @@ public static class Shim
                 return (PacketUpsertUserAll)ctor2.Invoke(args);
             };
         }
+        else if (type.GetConstructor(new[]
+                 {
+                     typeof(int),
+                     typeof(UserData),
+                     typeof(int),
+                     typeof(Action<int>),
+                     typeof(Action<PacketStatus>)
+                 }) is ConstructorInfo ctor3)
+        {
+            return (index, src, onDone, onError) =>
+            {
+                var maxTrackNo =
+                    src.IsEntry && !Singleton<GamePlayManager>.Instance.IsEmpty()
+                        ? Singleton<GamePlayManager>.Instance.GetScoreListCount()
+                        : 0;
+
+                var args = new object[] { index, src, maxTrackNo, onDone, onError };
+                return (PacketUpsertUserAll)ctor3.Invoke(args);
+            };
+        }
         else
         {
             throw new MissingMethodException("No matching PacketUpsertUserAll constructor found");
