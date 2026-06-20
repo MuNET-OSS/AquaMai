@@ -2,8 +2,6 @@
 using HarmonyLib;
 using IO;
 using Mecha;
-using MelonLoader;
-using Monitor;
 using Process;
 
 namespace AquaMai.Mods.UX;
@@ -17,25 +15,12 @@ namespace AquaMai.Mods.UX;
         """)]
 public static class DisableLightOutGame
 {
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorFetAutoFade))]
-    public static bool SetColorFetAutoFadePrefix()
-    {
-        return false;
-    }
-
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(AdvDemoMonitor), "BeatUpdate")]
-    public static bool BeatUpdate()
-    {
-        return false;
-    }
-
     [HarmonyPostfix]
     [HarmonyPatch(typeof(AdvDemoProcess), "OnStart")]
     public static void AdvDemoProcessStart()
     {
         MechaManager.SetAllCuOff();
+        isInGame = false;
     }
 
     [HarmonyPostfix]
@@ -43,5 +28,39 @@ public static class DisableLightOutGame
     public static void AdvertiseProcessStart()
     {
         MechaManager.SetAllCuOff();
+        isInGame = false;
+    }
+
+    private static bool isInGame = false;
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(AdvertiseProcess), "OnStart")]
+    public static void AdvertiseProcessPreStart()
+    {
+        MechaManager.SetAllCuOff();
+        isInGame = false;
+    }
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(EntryProcess), "OnStart")]
+    public static void EntryProcessPreStart()
+    {
+        isInGame = true;
+    }
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColor))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorFet))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorFetAutoFade))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorMultiFet))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorMulti))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorMultiFade))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorMultiAutoFade))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorSwitch))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorButton))]
+    [HarmonyPatch(typeof(Bd15070_4IF), nameof(Bd15070_4IF.SetColorButtonPressed))]
+    public static bool IsNotBlockSetColor()
+    {
+        return isInGame;
     }
 }
