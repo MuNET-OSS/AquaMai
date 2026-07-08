@@ -1,7 +1,12 @@
 #!/usr/bin/env pwsh
 
+param(
+    [string]$Configuration = "Release",
+    [string]$SourceRoot = $PSScriptRoot
+)
+
 $ErrorActionPreference = "Stop"
-Set-Location -LiteralPath $PSScriptRoot
+Set-Location -LiteralPath $SourceRoot
 
 $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
@@ -76,10 +81,5 @@ try {
 # 3. Build
 # ==========================================
 Write-Host "Building Solution..." -ForegroundColor Cyan
-$Configuration = "Release"
-if ($args.Count -gt 0 -and $args[0] -eq "-Configuration") {
-    $Configuration = $args[1]
-}
-
 dotnet build "./AquaMai.slnx" -c $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

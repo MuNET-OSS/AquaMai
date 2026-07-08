@@ -3,7 +3,7 @@ name: AquaMai Build
 on:
   workflow_dispatch:
   push:
-  pull_request_target:
+  pull_request:
 
 permissions:
   contents: read
@@ -11,18 +11,35 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      git_describe: ${{ steps.git-describe.outputs.git_describe }}
     steps:
       - name: Fix Git line encoding bug
         run: |
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: source
+          persist-credentials: false
+
+      - name: Checkout trusted scripts
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted-source
+          persist-credentials: false
 
       - name: Get Git Describe
+        id: git-describe
+        shell: pwsh
+        working-directory: source
         run: |
           $raw = git describe --tags --always
           if ($raw.StartsWith("v")) { $raw = $raw.Substring(1) }
@@ -32,36 +49,76 @@ jobs:
             $ver[2] = $parts[1]
             $raw = ($ver -join '.') + '-' + $parts[2]
           }
-          echo "GIT_DESCRIBE=$raw" >> $env:GITHUB_ENV
+          "GIT_DESCRIBE=$raw" >> $env:GITHUB_ENV
+          "git_describe=$raw" >> $env:GITHUB_OUTPUT
 
-      - name: Checkout Assets
+      - name: Checkout build dependencies
+        uses: actions/checkout@v4
+        with:
+          repository: MuNET-OSS/AquaMai-Build-Assets
+          path: source/build-assets
+          sparse-checkout: SDEZ
+          persist-credentials: false
+
+      - name: Build AquaMai
+        shell: pwsh
+        working-directory: source
+        run: |
+          New-Item -ItemType Directory -Path "Libs" -Force | Out-Null
+          Copy-Item -Path "build-assets/SDEZ/*" -Destination "Libs" -Force
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            & ../trusted-source/build.ps1 -SourceRoot .
+          } else {
+            & ./build.ps1
+          }
+
+      - name: Prepare artifact
+        shell: pwsh
+        working-directory: source
+        run: |
+          New-Item -ItemType Directory -Path "Output/Upload" -Force | Out-Null
+          Move-Item -Path "Output/AquaMai.dll" -Destination "Output/Upload/AquaMai.dll" -Force
+          Move-Item -Path "Output/AquaMai.zh.toml" -Destination "Output/Upload/AquaMai.zh.toml" -Force
+          Move-Item -Path "Output/AquaMai.en.toml" -Destination "Output/Upload/AquaMai.en.toml" -Force
+
+      - name: Upload unsigned artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AquaMai-unsigned
+          path: source/Output/Upload
+
+      - name: Upload artifact
+        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AquaMai
+          path: source/Output/Upload
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - name: Download unsigned artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AquaMai-unsigned
+          path: Output/Upload
+
+      - name: Checkout release assets
         uses: clansty/checkout@main
         with:
           repository: MuNET-OSS/AquaMai-Build-Assets
           ssh-key: ${{ secrets.BUILD_ASSETS_KEY }}
-          path: build-assets
+          path: release-assets
           max-attempts: 50
           min-retry-interval: 1
           max-retry-interval: 5
 
-      - name: Build AquaMai
-        shell: cmd
-        run: |
-          copy /y build-assets\SDEZ\* Libs
-          powershell ./build.ps1
-
-      - name: Prepare artifact
-        shell: cmd
-        run: |
-          cd Output
-          mkdir Upload
-          move AquaMai.dll Upload
-          move AquaMai.*.toml Upload
-
       - name: Sign and Upload CI release
-        if: github.event_name != 'pull_request_target' && github.ref == 'refs/heads/main'
         shell: cmd
-        run: build-assets\Releaser\AquaMaiReleaser.exe "Output\Upload\AquaMai.dll" "${{ env.GIT_DESCRIBE }}"
+        run: release-assets\Releaser\AquaMaiReleaser.exe "Output\Upload\AquaMai.dll" "${{ needs.build.outputs.git_describe }}"
         env:
           LEGACY_RELEASE_SIGN_PK: ${{ secrets.LEGACY_RELEASE_SIGN_PK }}
           RELEASE_SIGN_V2_PK: ${{ secrets.RELEASE_SIGN_V2_PK }}
@@ -74,18 +131,17 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: AquaMai
-          path: Output\Upload
+          path: Output/Upload
 
       - name: Send to Telegram
-        if: github.event_name != 'pull_request_target' && github.ref == 'refs/heads/main'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GIT_DESCRIBE: ${{ needs.build.outputs.git_describe }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || '' }}
         run: |
-          $Uri = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMediaGroup"
-          $GitDescribe = ConvertFrom-Json @'
-          ${{ toJson(env.GIT_DESCRIBE) }}
-          '@
-          $CommitMessage = ConvertFrom-Json @'
-          ${{ toJson(github.event.commits[0].message) }}
-          '@
+          $Uri = "https://api.telegram.org/bot$env:TELEGRAM_BOT_TOKEN/sendMediaGroup"
+          $GitDescribe = $env:GIT_DESCRIBE
+          $CommitMessage = $env:COMMIT_MESSAGE
           $Form = @{
             chat_id = "-1002231087502"
             media = @(
