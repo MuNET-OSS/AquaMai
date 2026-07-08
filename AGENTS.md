@@ -17,7 +17,6 @@ AquaMai/
 ├── AquaMai.Build/            # Build-time tools — example config gen, post-build patching
 ├── AquaMai.ErrorReport/      # Standalone crash report WinForms app
 ├── MuMod/                    # Separate auto-updater mod (downloads + signature-verifies AquaMai)
-├── MelonLoader.TinyJSON/     # Vendored JSON lib (empty source, likely reference)
 ├── Libs/                     # Game DLLs (Assembly-CSharp, UnityEngine, etc.) — gitignored contents
 ├── Output/                   # Build artifacts
 └── tools/                    # NuGet/Cake build tooling
