@@ -22,13 +22,18 @@ jobs:
           min-retry-interval: 1
           max-retry-interval: 5
 
-      - name: Upload build dependencies
-        uses: actions/upload-artifact@v4
+      - name: Stage build dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "build-dependencies/SDEZ" -Force | Out-Null
+          Copy-Item -Path "build-assets/SDEZ/AMDaemon.NET.dll" -Destination "build-dependencies/SDEZ/AMDaemon.NET.dll" -Force
+          Copy-Item -Path "build-assets/SDEZ/Assembly-CSharp.dll" -Destination "build-dependencies/SDEZ/Assembly-CSharp.dll" -Force
+
+      - name: Save build dependencies cache
+        uses: actions/cache/save@v4
         with:
-          name: AquaMai-build-dependencies-${{ github.run_id }}
-          path: |
-            build-assets/SDEZ/AMDaemon.NET.dll
-            build-assets/SDEZ/Assembly-CSharp.dll
+          key: AquaMai-build-dependencies-${{ github.run_id }}
+          path: build-dependencies/SDEZ
 
   build:
     needs: build-dependencies
@@ -85,18 +90,19 @@ jobs:
           "GIT_DESCRIBE=$raw" >> $env:GITHUB_ENV
           "git_describe=$raw" >> $env:GITHUB_OUTPUT
 
-      - name: Download build dependencies
-        uses: actions/download-artifact@v4
+      - name: Restore build dependencies cache
+        uses: actions/cache/restore@v4
         with:
-          name: AquaMai-build-dependencies-${{ github.run_id }}
-          path: source/build-assets/SDEZ
+          key: AquaMai-build-dependencies-${{ github.run_id }}
+          path: build-dependencies/SDEZ
+          fail-on-cache-miss: true
 
       - name: Build AquaMai
         shell: pwsh
         working-directory: source
         run: |
           New-Item -ItemType Directory -Path "Libs" -Force | Out-Null
-          Copy-Item -Path "build-assets/SDEZ/*" -Destination "Libs" -Force
+          Copy-Item -Path "../build-dependencies/SDEZ/*" -Destination "Libs" -Force
           if ("${{ github.event_name }}" -eq "pull_request_target") {
             & ../trusted-source/build.ps1 -SourceRoot .
           } else {
