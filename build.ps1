@@ -83,14 +83,3 @@ if ($args.Count -gt 0 -and $args[0] -eq "-Configuration") {
 
 dotnet build "./AquaMai.slnx" -c $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-# ==========================================
-# 4. PostBuild: Export build-assets to artifact
-# ==========================================
-if (Test-Path ".\build-assets") {
-    Write-Host "Zipping build-assets for CI artifact extraction..." -ForegroundColor Cyan
-    if (Test-Path ".\Output\build-assets.zip") { Remove-Item ".\Output\build-assets.zip" -Force }
-    Compress-Archive -Path ".\build-assets" -DestinationPath ".\Output\build-assets.zip" -Force
-    if (Test-Path ".\Output\AquaMai.build-assets.zip.toml") { Remove-Item ".\Output\AquaMai.build-assets.zip.toml" -Force }
-    Rename-Item -Path ".\Output\build-assets.zip" -NewName "AquaMai.build-assets.zip.toml" -Force
-}
