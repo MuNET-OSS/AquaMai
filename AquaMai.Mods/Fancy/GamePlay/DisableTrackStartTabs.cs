@@ -40,14 +40,14 @@ public class DisableTrackStartTabs
         ____musicTabObj[2].gameObject.SetActive(false);
         ____derakkumaRoot.SetActive(false);
         var traverse = Traverse.Create(____musicDetail);
-        traverse.Field<MultipleImage>("_achivement_Base").Value.ChangeSprite(1);
-        traverse.Field<MultipleImage>("_clearRank_Base").Value.ChangeSprite(1);
+        traverse.Field<MultipleImage>("_achivement_Base").Value.gameObject.SetActive(false);
+        traverse.Field<MultipleImage>("_clearRank_Base").Value.gameObject.SetActive(false);
         traverse.Field<TextMeshProUGUI>("_achivement_Text").Value.gameObject.SetActive(false);
         traverse.Field<TextMeshProUGUI>("_achivement_decimal_Text").Value.gameObject.SetActive(false);
         traverse.Field<TextMeshProUGUI>("_achivement_percent_Text").Value.gameObject.SetActive(false);
         traverse.Field<MultipleImage>("_clearRank_Image").Value.gameObject.SetActive(false);
         traverse.Field<GameObject>("_deluxScore_Obj").Value.SetActive(false);
-        traverse.Field<MultipleImage>("_comboRank_Image").Value.ChangeSprite(0);
-        traverse.Field<MultipleImage>("_syncRank_Image").Value.ChangeSprite(0);
+        traverse.Field<MultipleImage>("_comboRank_Image").Value.gameObject.SetActive(false);
+        traverse.Field<MultipleImage>("_syncRank_Image").Value.gameObject.SetActive(false);
     }
 }
