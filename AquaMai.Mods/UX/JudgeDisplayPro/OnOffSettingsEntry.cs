@@ -8,7 +8,7 @@ public class OnOffSettingsEntry : IPlayerSettingsItem
 
     public string Name => "启用高级判定表示";
 
-    public string Detail => "影响接下来 TODO 个选项是否生效，还是跟随游戏自带的判定表示";
+    public string Detail => "影响接下来 4 个选项是否生效，还是跟随游戏自带的判定表示";
 
     public void AddOption(int player)
     {
@@ -27,7 +27,7 @@ public class OnOffSettingsEntry : IPlayerSettingsItem
 
     public int GetOptionMax(int player)
     {
-        return 1;
+        return 2;
     }
 
     public string GetOptionValue(int player)
@@ -37,7 +37,7 @@ public class OnOffSettingsEntry : IPlayerSettingsItem
 
     public int GetOptionValueIndex(int player)
     {
-        return JudgeDisplayPro.userSettings[player].IsEnable ? 0 : 1;
+        return JudgeDisplayPro.userSettings[player].IsEnable ? 1 : 0;
     }
 
     public string GetSpriteFile(int player)

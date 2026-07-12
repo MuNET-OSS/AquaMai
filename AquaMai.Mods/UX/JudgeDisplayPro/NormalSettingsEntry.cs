@@ -30,7 +30,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
     public string Detail => type switch
     {
         NormalSettingsType.Perfect => "影响小P的显示方式",
-        NormalSettingsType.Great => "影响绝赞的显示方式",
+        NormalSettingsType.Great => "影响GREAT的显示方式",
         NormalSettingsType.Good => "影响GOOD的显示方式",
         _ => "未知",
     };
