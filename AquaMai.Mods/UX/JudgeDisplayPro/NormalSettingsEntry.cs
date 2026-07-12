@@ -97,6 +97,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
             NormalDisplayMode.JudgeOnly => "只显示判定",
             NormalDisplayMode.All => "显示判定 + FAST / LATE",
             NormalDisplayMode.TimingOnly => "只显示FAST / LATE",
+            NormalDisplayMode.ColoredJudge => "显示蓝色或者红色的判定文字",
             NormalDisplayMode.None => "不显示",
             _ => "未知",
         };

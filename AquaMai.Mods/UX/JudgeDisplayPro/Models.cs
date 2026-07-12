@@ -10,6 +10,8 @@ public enum NormalDisplayMode
     All,
     /// <summary>只显示 FAST / LATE</summary>
     TimingOnly,
+    /// <summary>显示蓝色或者红色的判定文字</summary>
+    ColoredJudge,
     /// <summary>不显示</summary>
     None,
 }
