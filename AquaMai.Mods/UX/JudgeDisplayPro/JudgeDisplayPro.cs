@@ -1,7 +1,10 @@
 using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
 using AquaMai.Core.Types;
+using DB;
 using HarmonyLib;
+using Manager;
+using Manager.UserDatas;
 using Monitor;
 using Process;
 using UnityEngine;
@@ -411,6 +414,26 @@ public class JudgeDisplayPro
         }
     }
 
-
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(GameScoreList), nameof(GameScoreList.Initialize))]
+    public static void PostGameScoreListInitialize(int monitorIndex, UserOption ___UserOption)
+    {
+        if (!userSettings[monitorIndex].IsEnable) return;
+        switch (userSettings[monitorIndex].CriticalDisplayMode)
+        {
+            case CriticalDisplayMode.None:
+                ___UserOption.DispJudge = OptionDispjudgeID.Type1A;
+                break;
+            case CriticalDisplayMode.OnBreak:
+            case CriticalDisplayMode.OffBreak:
+                ___UserOption.DispJudge = OptionDispjudgeID.Type1E;
+                break;
+            case CriticalDisplayMode.OnAll:
+            case CriticalDisplayMode.OnAllShowBreak:
+            case CriticalDisplayMode.OffAll:
+                ___UserOption.DispJudge = OptionDispjudgeID.Type3B;
+                break;
+        }
+    }
 
 }
