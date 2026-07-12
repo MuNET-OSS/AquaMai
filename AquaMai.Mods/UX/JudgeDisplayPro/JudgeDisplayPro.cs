@@ -1,3 +1,4 @@
+using System;
 using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
 using AquaMai.Core.Types;
@@ -5,6 +6,7 @@ using DB;
 using HarmonyLib;
 using Manager;
 using Manager.UserDatas;
+using MelonLoader;
 using Monitor;
 using Process;
 using UnityEngine;
@@ -16,7 +18,8 @@ namespace AquaMai.Mods.UX.JudgeDisplayPro;
 [ConfigCollapseNamespace]
 public class JudgeDisplayPro
 {
-    public static UserSettings[] userSettings = [new UserSettings(), new UserSettings()];
+    // 有些地方有 4P
+    public static UserSettings[] userSettings = [new UserSettings(), new UserSettings(), new UserSettings(), new UserSettings()];
     public static IPersistentStorage storage = new PlayerPrefsStorage();
 
     public static void OnBeforePatch()
@@ -28,11 +31,34 @@ public class JudgeDisplayPro
         GameSettingsManager.RegisterSetting(new NormalSettingsEntry(NormalSettingsType.Good));
     }
 
+    // Touch 的 JudgeGrade（JudgeTouchGrade）不会被 SetLedSetting，_monitorIndex 一直是 -1
+    // 由上一层 note 的 EndNote 在调用 Initialize 前把自己的 MonitorId 暂存到这里补上
+    [ThreadStatic]
+    private static int touchMonitorIndex;
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(TouchNoteB), "EndNote")]
+    public static void PreTouchNoteBEndNote(NoteBase __instance)
+    {
+        touchMonitorIndex = __instance.MonitorId;
+    }
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(TouchHoldC), "EndNote")]
+    public static void PreTouchHoldCEndNote(NoteBase __instance)
+    {
+        touchMonitorIndex = __instance.MonitorId;
+    }
+
     [HarmonyPostfix]
     [HarmonyPatch(typeof(JudgeGrade), nameof(JudgeGrade.Initialize))]
     public static void PostJudgeGradeInitialize(JudgeGrade __instance, NoteJudge.ETiming judge, int ____monitorIndex, SpriteRenderer ___SpriteRender, SpriteRenderer ___SpriteRenderFastLate)
     {
+        // Touch 的 monitor index 会是 -1，用上一层 note 暂存的补上
+        if (____monitorIndex < 0) ____monitorIndex = touchMonitorIndex;
+        if (____monitorIndex < 0) return;
         if (!userSettings[____monitorIndex].IsEnable) return;
+        __instance.gameObject.SetActive(true);
         switch (judge)
         {
             case NoteJudge.ETiming.FastGood:

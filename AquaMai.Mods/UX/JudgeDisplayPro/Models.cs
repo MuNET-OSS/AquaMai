@@ -2,6 +2,9 @@ using System.Runtime.Serialization;
 
 namespace AquaMai.Mods.UX.JudgeDisplayPro;
 
+/// <summary>
+/// GOOD 到小 PERFECT 判定显示
+/// </summary>
 public enum NormalDisplayMode
 {
     /// <summary>只显示判定</summary>
@@ -16,6 +19,9 @@ public enum NormalDisplayMode
     None,
 }
 
+/// <summary>
+/// 大 P 判定显示
+/// </summary>
 public enum CriticalDisplayMode
 {
     /// <summary>不开启大P</summary>

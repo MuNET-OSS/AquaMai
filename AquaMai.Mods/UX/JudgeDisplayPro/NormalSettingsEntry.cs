@@ -36,7 +36,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
     };
 
     public const NormalDisplayMode MinValue = NormalDisplayMode.JudgeOnly;
-    public const NormalDisplayMode MaxValue = NormalDisplayMode.TimingOnly;
+    public const NormalDisplayMode MaxValue = NormalDisplayMode.None;
 
     public void AddOption(int player)
     {
