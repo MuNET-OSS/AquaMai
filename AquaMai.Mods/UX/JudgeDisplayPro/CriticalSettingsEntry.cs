@@ -15,6 +15,7 @@ public class CriticalSettingsEntry : IPlayerSettingsItem
 
     public void AddOption(int player)
     {
+        if (!GetIsRightButtonActive(player)) return;
         JudgeDisplayPro.userSettings[player].CriticalDisplayMode++;
     }
 
@@ -66,6 +67,7 @@ public class CriticalSettingsEntry : IPlayerSettingsItem
 
     public void SubOption(int player)
     {
+        if (!GetIsLeftButtonActive(player)) return;
         JudgeDisplayPro.userSettings[player].CriticalDisplayMode--;
     }
 }

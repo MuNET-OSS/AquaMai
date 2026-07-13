@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+using System;
 
 namespace AquaMai.Mods.UX.JudgeDisplayPro;
 
@@ -55,9 +55,9 @@ public class UserSettings
     {
         var values = data.Split(',');
         IsEnable = bool.Parse(values[0]);
-        CriticalDisplayMode = (CriticalDisplayMode)int.Parse(values[1]);
-        PerfectDisplayMode = (NormalDisplayMode)int.Parse(values[2]);
-        GreatDisplayMode = (NormalDisplayMode)int.Parse(values[3]);
-        GoodDisplayMode = (NormalDisplayMode)int.Parse(values[4]);
+        CriticalDisplayMode = (CriticalDisplayMode)Enum.Parse(typeof(CriticalDisplayMode), values[1]);
+        PerfectDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[2]);
+        GreatDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[3]);
+        GoodDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[4]);
     }
 }

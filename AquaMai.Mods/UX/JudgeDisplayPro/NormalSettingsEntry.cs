@@ -40,6 +40,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
 
     public void AddOption(int player)
     {
+        if (!GetIsRightButtonActive(player)) return;
         switch (type)
         {
             case NormalSettingsType.Perfect:
@@ -121,6 +122,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
 
     public void SubOption(int player)
     {
+        if (!GetIsLeftButtonActive(player)) return;
         switch (type)
         {
             case NormalSettingsType.Perfect:
