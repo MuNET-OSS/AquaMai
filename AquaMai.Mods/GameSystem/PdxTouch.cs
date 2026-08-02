@@ -1,9 +1,7 @@
 using System;
 using AquaMai.Config.Attributes;
-using AquaMai.Mods.GameSettings;
 using AquaMai.Mods.GameSystem.ExclusiveTouch;
 using LibUsbDotNet.Main;
-using MelonLoader;
 
 namespace AquaMai.Mods.GameSystem;
 
@@ -44,44 +42,11 @@ public class PdxTouch
     [ConfigEntry("2P 设备路径")]
     public static readonly string path2p = "";
 
-    private static readonly PdxTouchDevice[] devices = new PdxTouchDevice[2];
-
     public static void OnBeforeEnableCheck()
     {
-        if (string.IsNullOrWhiteSpace(path1p) && string.IsNullOrWhiteSpace(path2p))
-        {
-            // 没有配置任何路径,使用第一个设备
-            devices[0] = new PdxTouchDevice(0, null);
-            devices[0].Start();
-        }
-        else
-        {
-            // 配置了路径,按路径查找
-            if (!string.IsNullOrWhiteSpace(path1p))
-            {
-                devices[0] = new PdxTouchDevice(0, path1p);
-                devices[0].Start();
-            }
-            if (!string.IsNullOrWhiteSpace(path2p))
-            {
-                devices[1] = new PdxTouchDevice(1, path2p);
-                devices[1].Start();
-            }
-        }
-
-        for (int i = 0; i < 2; i++)
-        {
-            if (devices[i] != null && devices[i].IsConnected)
-            {
-                if (!JudgeAdjust.shouldEnableImplicitly)
-                {
-                    JudgeAdjust.shouldEnableImplicitly = true;
-                }
-                if (i == 0) JudgeAdjust.b_1P += 1.0;
-                else JudgeAdjust.b_2P += 1.0;
-                MelonLogger.Msg($"[PdxTouch] {i + 1}P connected");
-            }
-        }
+        ExclusiveTouchHost.StartDevices("PdxTouch", path1p, path2p,
+            (playerNo, path) => new PdxTouchDevice(playerNo, path),
+            (playerNo, path) => new FlTouchDevice(playerNo, path));
     }
 
     private class PdxTouchDevice(int playerNo, string locationPath) : ExclusiveTouchBase(
@@ -122,6 +87,74 @@ public class PdxTouch
                 ushort y = BitConverter.ToUInt16(data, index + 4);
                 HandleFinger(x, y, fingerId, isPressed);
             }
+        }
+    }
+
+    private class FlTouchDevice(int playerNo, string locationPath) : ExclusiveTouchBase(
+        playerNo,
+        vid: 0x227D,
+        pid: 0x0103,
+        serialNumber: null,  // 复合设备的 MI_00 子设备路径里不带序列号，只能用端口路径
+        locationPath,
+        configuration: 1,
+        interfaceNumber: 0,
+        ReadEndpointID.Ep01,
+        packetSize: 64,
+        minX: 18432,
+        minY: 0,
+        maxX: 0,
+        maxY: 32767,
+        flip: true,
+        radius,
+        aAreaExtraRadius,
+        bAreaExtraRadius,
+        cAreaExtraRadius,
+        dAreaExtraRadius,
+        eAreaExtraRadius)
+    {
+        private const byte ReportId = 2;
+        private const int SlotStart = 2;
+        private const int SlotSize = 10;
+        private const int SlotsPerReport = 6;
+
+        // 一帧超过 6 个点时会拆成多个报告连续发来，只有首个报告带总数
+        private int remaining;
+
+        protected override void OnTouchData(byte[] data)
+        {
+            if (data[0] != ReportId) return;
+
+            int count = data[1];
+            if (count > 0)
+            {
+                // 新帧的帧头。上一帧没收满就丢了，这里直接重置
+                remaining = count;
+            }
+            else if (remaining <= 0)
+            {
+                // 从帧中间开始读，没有帧头，只能丢
+                return;
+            }
+
+            // 剩余数量之外的槽里是上一个报告的残留数据，不清零，读了会变成幻影触摸
+            int take = Math.Min(remaining, SlotsPerReport);
+            for (int i = 0; i < take; i++)
+            {
+                var index = SlotStart + i * SlotSize;
+                var fingerId = data[index + 1];
+                ushort x = BitConverter.ToUInt16(data, index + 2);
+                ushort y = BitConverter.ToUInt16(data, index + 4);
+                ushort w = BitConverter.ToUInt16(data, index + 6);
+                ushort h = BitConverter.ToUInt16(data, index + 8);
+
+                // 一次触摸的状态序列是 04(有面积) -> 07 -> 04(面积归零) -> 00，
+                // Tip Switch 位只在 07 出现。用面积判定比等 Tip Switch 早一帧
+                // （4~8ms），抬起时面积归零和 Tip Switch 清零在同一帧，没有区别
+                bool isPressed = w > 0 || h > 0;
+                HandleFinger(x, y, fingerId, isPressed);
+            }
+
+            remaining -= take;
         }
     }
 }
