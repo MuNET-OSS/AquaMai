@@ -1,5 +1,9 @@
 
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Text;
 using LibUsbDotNet.Main;
 using LibUsbDotNet;
 using MelonLoader;
@@ -11,18 +15,37 @@ using JetBrains.Annotations;
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
 public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeNull] string serialNumber, [CanBeNull] string locationPath, byte configuration, int interfaceNumber, ReadEndpointID endpoint, int packetSize, int minX, int minY, int maxX, int maxY, bool flip, int radius,
-    float aExtraRadius = 0, float bExtraRadius = 0, float cExtraRadius = 0, float dExtraRadius = 0, float eExtraRadius = 0)
+    float aExtraRadius = 0, float bExtraRadius = 0, float cExtraRadius = 0, float dExtraRadius = 0, float eExtraRadius = 0,
+    int timeoutMilliseconds = 20)
 {
     private UsbDevice device;
     private TouchSensorMapper touchSensorMapper;
 
     public bool IsConnected => device != null;
 
+    protected int PlayerNo => playerNo;
+
     private class TouchPoint
     {
         public ulong Mask;
         public long LastUpdateTick;
         public bool IsActive;
+    }
+
+    protected readonly struct TouchUpdate
+    {
+        public readonly ushort X;
+        public readonly ushort Y;
+        public readonly int FingerId;
+        public readonly bool IsPressed;
+
+        public TouchUpdate(ushort x, ushort y, int fingerId, bool isPressed)
+        {
+            X = x;
+            Y = y;
+            FingerId = fingerId;
+            IsPressed = isPressed;
+        }
     }
 
     // [手指ID]
@@ -32,7 +55,12 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     private readonly InputLatch _touchLatch = new();
     private readonly object touchLock = new();
 
-    private static readonly long TouchTimeoutTicks = Stopwatch.Frequency / 50; // 20ms
+    private readonly long TouchTimeoutTicks = Stopwatch.Frequency * timeoutMilliseconds / 1000;
+
+    private ulong _lastDiagnosticRead;
+    private bool _hasDiagnosticRead;
+
+    protected virtual string DiagnosticName => "ExclusiveTouch";
 
     public void Start()
     {
@@ -126,25 +154,66 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
     protected abstract void OnTouchData(byte[] data);
 
+    private void ApplyFinger(TouchUpdate update, long timestamp)
+    {
+        if (update.FingerId < 0 || update.FingerId >= 256) return;
+
+        var point = allFingerPoints[update.FingerId];
+        if (update.IsPressed)
+        {
+            point.Mask = touchSensorMapper.ParseTouchPoint(update.X, update.Y);
+            point.IsActive = true;
+            point.LastUpdateTick = timestamp;
+        }
+        else
+        {
+            point.IsActive = false;
+        }
+    }
+
     protected void HandleFinger(ushort x, ushort y, int fingerId, bool isPressed)
     {
         // 安全检查，防止越界
         if (fingerId < 0 || fingerId >= 256) return;
         lock (touchLock)
         {
-            var point = allFingerPoints[fingerId];
-            if (isPressed)
+            ApplyFinger(new TouchUpdate(x, y, fingerId, isPressed), Stopwatch.GetTimestamp());
+            var state = ComputeActiveMask();
+            _touchLatch.Update(state);
+            ExclusiveTouchDiagnostics.Log(
+                "{0} player={1} finger={2} pressed={3} mask=0x{4:X16}",
+                DiagnosticName, playerNo + 1, fingerId, isPressed, state);
+        }
+    }
+
+    protected void BeginTouchFrame()
+    {
+        lock (touchLock)
+        {
+            var now = Stopwatch.GetTimestamp();
+            for (int i = 0; i < allFingerPoints.Length; i++)
             {
-                ulong touchMask = touchSensorMapper.ParseTouchPoint(x, y);
-                point.IsActive = true;
-                point.Mask = touchMask;
-                point.LastUpdateTick = Stopwatch.GetTimestamp();
+                if (allFingerPoints[i].IsActive)
+                    allFingerPoints[i].LastUpdateTick = now;
             }
-            else
+        }
+    }
+
+    protected void HandleFrame(IReadOnlyList<TouchUpdate> updates)
+    {
+        lock (touchLock)
+        {
+            var now = Stopwatch.GetTimestamp();
+            foreach (var update in updates)
             {
-                point.IsActive = false;
+                ApplyFinger(update, now);
             }
-            _touchLatch.Update(ComputeActiveMask());
+
+            var state = ComputeActiveMask();
+            _touchLatch.Update(state);
+            ExclusiveTouchDiagnostics.Log(
+                "{0} player={1} frame-commit updates={2} state=0x{3:X16}",
+                DiagnosticName, playerNo + 1, updates.Count, state);
         }
     }
 
@@ -164,16 +233,81 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         lock (touchLock)
         {
             var now = Stopwatch.GetTimestamp();
+            var timedOut = new StringBuilder();
             for (int i = 0; i < allFingerPoints.Length; i++)
             {
                 var point = allFingerPoints[i];
                 if (point.IsActive && (now - point.LastUpdateTick) > TouchTimeoutTicks)
                 {
                     point.IsActive = false;
+                    if (timedOut.Length > 0) timedOut.Append(',');
+                    timedOut.Append(i);
                 }
             }
-            _touchLatch.Update(ComputeActiveMask());
-            return _touchLatch.Read();
+            var state = ComputeActiveMask();
+            _touchLatch.Update(state);
+            var result = _touchLatch.Read();
+            if (timedOut.Length > 0 || !_hasDiagnosticRead || result != _lastDiagnosticRead)
+            {
+                ExclusiveTouchDiagnostics.Log(
+                    "{0} player={1} poll state=0x{2:X16} result=0x{3:X16} timeout=[{4}]",
+                    DiagnosticName, playerNo + 1, state, result, timedOut);
+                _lastDiagnosticRead = result;
+                _hasDiagnosticRead = true;
+            }
+            return result;
+        }
+    }
+}
+
+internal static class ExclusiveTouchDiagnostics
+{
+    private static readonly object Sync = new();
+    private static StreamWriter writer;
+
+    public static bool Enabled => writer != null;
+
+    public static void Configure(bool enabled)
+    {
+        if (!enabled) return;
+
+        lock (Sync)
+        {
+            if (writer != null) return;
+            try
+            {
+                var directory = Path.Combine(Environment.CurrentDirectory, "UserData");
+                Directory.CreateDirectory(directory);
+                var path = Path.Combine(directory, "AquaMaiTouch.log");
+                writer = new StreamWriter(path, append: true, Encoding.UTF8)
+                {
+                    AutoFlush = true
+                };
+                MelonLogger.Msg($"[ExclusiveTouch] Diagnostic log: {path}");
+                Log("session-start");
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Error($"[ExclusiveTouch] Cannot open diagnostic log: {e}");
+            }
+        }
+    }
+
+    public static void Log(string format, params object[] args)
+    {
+        lock (Sync)
+        {
+            if (writer == null) return;
+            try
+            {
+                writer.WriteLine($"{DateTime.UtcNow:O} {string.Format(format, args)}");
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Error($"[ExclusiveTouch] Diagnostic log write failed: {e}");
+                writer.Dispose();
+                writer = null;
+            }
         }
     }
 }

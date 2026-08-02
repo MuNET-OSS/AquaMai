@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AquaMai.Config.Attributes;
 using AquaMai.Mods.GameSystem.ExclusiveTouch;
 using LibUsbDotNet.Main;
@@ -42,8 +43,14 @@ public class PdxTouch
     [ConfigEntry("2P 设备路径")]
     public static readonly string path2p = "";
 
+    [ConfigEntry("触摸诊断日志",
+        en: "Write touch report diagnostics to UserData/AquaMaiTouch.log.",
+        zh: "将触摸报告诊断信息写入 UserData/AquaMaiTouch.log")]
+    public static readonly bool diagnosticLog = false;
+
     public static void OnBeforeEnableCheck()
     {
+        ExclusiveTouchDiagnostics.Configure(diagnosticLog);
         ExclusiveTouchHost.StartDevices("PdxTouch", path1p, path2p,
             (playerNo, path) => new PdxTouchDevice(playerNo, path),
             (playerNo, path) => new FlTouchDevice(playerNo, path));
@@ -72,21 +79,36 @@ public class PdxTouch
         eAreaExtraRadius)
     {
         private const byte ReportId = 2;
+        private int reportSequence;
+
+        protected override string DiagnosticName => "PDX";
+
         protected override void OnTouchData(byte[] data)
         {
             byte reportId = data[0];
             if (reportId != ReportId) return;
 
+            reportSequence++;
+            var contacts = new System.Text.StringBuilder();
+            var validSlots = 0;
+
             for (int i = 0; i < 10; i++)
             {
                 var index = i * 6 + 1;
                 if (data[index] == 0) continue;
+                validSlots++;
                 bool isPressed = (data[index] & 0x01) == 1;
                 var fingerId = data[index + 1];
                 ushort x = BitConverter.ToUInt16(data, index + 2);
                 ushort y = BitConverter.ToUInt16(data, index + 4);
+                if (contacts.Length > 0) contacts.Append(' ');
+                contacts.Append($"id={fingerId}:st=0x{data[index]:X2},p={isPressed},x={x},y={y}");
                 HandleFinger(x, y, fingerId, isPressed);
             }
+
+            ExclusiveTouchDiagnostics.Log(
+                "PDX player={0} report={1} slots={2} {3}",
+                PlayerNo + 1, reportSequence, validSlots, contacts);
         }
     }
 
@@ -110,7 +132,8 @@ public class PdxTouch
         bAreaExtraRadius,
         cAreaExtraRadius,
         dAreaExtraRadius,
-        eAreaExtraRadius)
+        eAreaExtraRadius,
+        timeoutMilliseconds: 100)
     {
         private const byte ReportId = 2;
         private const int SlotStart = 2;
@@ -119,25 +142,43 @@ public class PdxTouch
 
         // 一帧超过 6 个点时会拆成多个报告连续发来，只有首个报告带总数
         private int remaining;
+        private int reportSequence;
+        private readonly List<TouchUpdate> pendingUpdates = new();
+
+        protected override string DiagnosticName => "FL";
 
         protected override void OnTouchData(byte[] data)
         {
             if (data[0] != ReportId) return;
 
+            reportSequence++;
             int count = data[1];
+            int remainingBefore = remaining;
             if (count > 0)
             {
+                if (remaining > 0)
+                {
+                    ExclusiveTouchDiagnostics.Log(
+                        "FL player={0} report={1} resync drop-pending={2}",
+                        PlayerNo + 1, reportSequence, pendingUpdates.Count);
+                }
+                BeginTouchFrame();
+                pendingUpdates.Clear();
                 // 新帧的帧头。上一帧没收满就丢了，这里直接重置
                 remaining = count;
             }
             else if (remaining <= 0)
             {
                 // 从帧中间开始读，没有帧头，只能丢
+                ExclusiveTouchDiagnostics.Log(
+                    "FL player={0} report={1} zero-count-no-pending",
+                    PlayerNo + 1, reportSequence);
                 return;
             }
 
             // 剩余数量之外的槽里是上一个报告的残留数据，不清零，读了会变成幻影触摸
             int take = Math.Min(remaining, SlotsPerReport);
+            var contacts = new System.Text.StringBuilder();
             for (int i = 0; i < take; i++)
             {
                 var index = SlotStart + i * SlotSize;
@@ -151,10 +192,20 @@ public class PdxTouch
                 // Tip Switch 位只在 07 出现。用面积判定比等 Tip Switch 早一帧
                 // （4~8ms），抬起时面积归零和 Tip Switch 清零在同一帧，没有区别
                 bool isPressed = w > 0 || h > 0;
-                HandleFinger(x, y, fingerId, isPressed);
+                if (contacts.Length > 0) contacts.Append(' ');
+                contacts.Append($"id={fingerId},p={isPressed},x={x},y={y},w={w},h={h}");
+                pendingUpdates.Add(new TouchUpdate(x, y, fingerId, isPressed));
             }
 
             remaining -= take;
+            ExclusiveTouchDiagnostics.Log(
+                "FL player={0} report={1} count={2} remaining={3}->{4} take={5} {6}",
+                PlayerNo + 1, reportSequence, count, remainingBefore, remaining, take, contacts);
+            if (remaining == 0)
+            {
+                HandleFrame(pendingUpdates);
+                pendingUpdates.Clear();
+            }
         }
     }
 }
