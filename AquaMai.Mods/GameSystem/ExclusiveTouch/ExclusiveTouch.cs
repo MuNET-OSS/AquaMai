@@ -199,11 +199,18 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         }
     }
 
-    protected void HandleFrame(IReadOnlyList<TouchUpdate> updates)
+    private void HandleUpdates(IReadOnlyList<TouchUpdate> updates, string eventName, bool replaceState)
     {
         lock (touchLock)
         {
             var now = Stopwatch.GetTimestamp();
+            if (replaceState)
+            {
+                for (int i = 0; i < allFingerPoints.Length; i++)
+                {
+                    allFingerPoints[i].IsActive = false;
+                }
+            }
             foreach (var update in updates)
             {
                 ApplyFinger(update, now);
@@ -212,9 +219,19 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             var state = ComputeActiveMask();
             _touchLatch.Update(state);
             ExclusiveTouchDiagnostics.Log(
-                "{0} player={1} frame-commit updates={2} state=0x{3:X16}",
-                DiagnosticName, playerNo + 1, updates.Count, state);
+                "{0} player={1} {2} updates={3} state=0x{4:X16}",
+                DiagnosticName, playerNo + 1, eventName, updates.Count, state);
         }
+    }
+
+    protected void HandleFrame(IReadOnlyList<TouchUpdate> updates)
+    {
+        HandleUpdates(updates, "frame-commit", replaceState: true);
+    }
+
+    protected void HandleReleases(IReadOnlyList<TouchUpdate> updates)
+    {
+        HandleUpdates(updates, "release-commit", replaceState: false);
     }
 
     private ulong ComputeActiveMask()

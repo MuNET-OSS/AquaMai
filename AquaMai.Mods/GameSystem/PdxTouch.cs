@@ -179,6 +179,7 @@ public class PdxTouch
             // 剩余数量之外的槽里是上一个报告的残留数据，不清零，读了会变成幻影触摸
             int take = Math.Min(remaining, SlotsPerReport);
             var contacts = new System.Text.StringBuilder();
+            var releases = new List<TouchUpdate>();
             for (int i = 0; i < take; i++)
             {
                 var index = SlotStart + i * SlotSize;
@@ -194,13 +195,19 @@ public class PdxTouch
                 bool isPressed = w > 0 || h > 0;
                 if (contacts.Length > 0) contacts.Append(' ');
                 contacts.Append($"id={fingerId},p={isPressed},x={x},y={y},w={w},h={h}");
-                pendingUpdates.Add(new TouchUpdate(x, y, fingerId, isPressed));
+                var update = new TouchUpdate(x, y, fingerId, isPressed);
+                pendingUpdates.Add(update);
+                if (!isPressed) releases.Add(update);
             }
 
             remaining -= take;
             ExclusiveTouchDiagnostics.Log(
                 "FL player={0} report={1} count={2} remaining={3}->{4} take={5} {6}",
                 PlayerNo + 1, reportSequence, count, remainingBefore, remaining, take, contacts);
+            if (releases.Count > 0)
+            {
+                HandleReleases(releases);
+            }
             if (remaining == 0)
             {
                 HandleFrame(pendingUpdates);
