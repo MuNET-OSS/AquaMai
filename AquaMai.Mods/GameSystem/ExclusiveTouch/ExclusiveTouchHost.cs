@@ -44,8 +44,7 @@ public static class ExclusiveTouchHost
         foreach (var factory in factories)
         {
             var device = factory(playerNo, locationPath);
-            device.Start();
-            if (device.IsConnected) return device;
+            if (device.Start()) return device;
         }
 
         return null;

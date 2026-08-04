@@ -89,7 +89,8 @@ public class PdxTouch
             if (reportId != ReportId) return;
 
             reportSequence++;
-            var contacts = new System.Text.StringBuilder();
+            var diagnosticsEnabled = ExclusiveTouchDiagnostics.Enabled;
+            var contacts = diagnosticsEnabled ? new System.Text.StringBuilder() : null;
             var validSlots = 0;
 
             for (int i = 0; i < 10; i++)
@@ -101,14 +102,20 @@ public class PdxTouch
                 var fingerId = data[index + 1];
                 ushort x = BitConverter.ToUInt16(data, index + 2);
                 ushort y = BitConverter.ToUInt16(data, index + 4);
-                if (contacts.Length > 0) contacts.Append(' ');
-                contacts.Append($"id={fingerId}:st=0x{data[index]:X2},p={isPressed},x={x},y={y}");
+                if (diagnosticsEnabled)
+                {
+                    if (contacts.Length > 0) contacts.Append(' ');
+                    contacts.Append($"id={fingerId}:st=0x{data[index]:X2},p={isPressed},x={x},y={y}");
+                }
                 HandleFinger(x, y, fingerId, isPressed);
             }
 
-            ExclusiveTouchDiagnostics.Log(
-                "PDX player={0} report={1} slots={2} {3}",
-                PlayerNo + 1, reportSequence, validSlots, contacts);
+            if (diagnosticsEnabled)
+            {
+                ExclusiveTouchDiagnostics.Log(
+                    "PDX player={0} report={1} slots={2} {3}",
+                    PlayerNo + 1, reportSequence, validSlots, contacts);
+            }
         }
     }
 
@@ -143,7 +150,8 @@ public class PdxTouch
         // 一帧超过 6 个点时会拆成多个报告连续发来，只有首个报告带总数
         private int remaining;
         private int reportSequence;
-        private readonly List<TouchUpdate> pendingUpdates = new();
+        private readonly List<TouchUpdate> pendingUpdates = new(SlotsPerReport * 2);
+        private readonly List<TouchUpdate> releaseUpdates = new(SlotsPerReport);
 
         protected override string DiagnosticName => "FL";
 
@@ -152,17 +160,17 @@ public class PdxTouch
             if (data[0] != ReportId) return;
 
             reportSequence++;
+            var diagnosticsEnabled = ExclusiveTouchDiagnostics.Enabled;
             int count = data[1];
             int remainingBefore = remaining;
             if (count > 0)
             {
-                if (remaining > 0)
+                if (remaining > 0 && diagnosticsEnabled)
                 {
                     ExclusiveTouchDiagnostics.Log(
                         "FL player={0} report={1} resync drop-pending={2}",
                         PlayerNo + 1, reportSequence, pendingUpdates.Count);
                 }
-                BeginTouchFrame();
                 pendingUpdates.Clear();
                 // 新帧的帧头。上一帧没收满就丢了，这里直接重置
                 remaining = count;
@@ -170,16 +178,19 @@ public class PdxTouch
             else if (remaining <= 0)
             {
                 // 从帧中间开始读，没有帧头，只能丢
-                ExclusiveTouchDiagnostics.Log(
-                    "FL player={0} report={1} zero-count-no-pending",
-                    PlayerNo + 1, reportSequence);
+                if (diagnosticsEnabled)
+                {
+                    ExclusiveTouchDiagnostics.Log(
+                        "FL player={0} report={1} zero-count-no-pending",
+                        PlayerNo + 1, reportSequence);
+                }
                 return;
             }
 
             // 剩余数量之外的槽里是上一个报告的残留数据，不清零，读了会变成幻影触摸
             int take = Math.Min(remaining, SlotsPerReport);
-            var contacts = new System.Text.StringBuilder();
-            var releases = new List<TouchUpdate>();
+            var contacts = diagnosticsEnabled ? new System.Text.StringBuilder() : null;
+            releaseUpdates.Clear();
             for (int i = 0; i < take; i++)
             {
                 var index = SlotStart + i * SlotSize;
@@ -193,20 +204,29 @@ public class PdxTouch
                 // Tip Switch 位只在 07 出现。用面积判定比等 Tip Switch 早一帧
                 // （4~8ms），抬起时面积归零和 Tip Switch 清零在同一帧，没有区别
                 bool isPressed = w > 0 || h > 0;
-                if (contacts.Length > 0) contacts.Append(' ');
-                contacts.Append($"id={fingerId},p={isPressed},x={x},y={y},w={w},h={h}");
+                if (diagnosticsEnabled)
+                {
+                    if (contacts.Length > 0) contacts.Append(' ');
+                    contacts.Append($"id={fingerId},p={isPressed},x={x},y={y},w={w},h={h}");
+                }
                 var update = new TouchUpdate(x, y, fingerId, isPressed);
                 pendingUpdates.Add(update);
-                if (!isPressed) releases.Add(update);
+                if (!isPressed)
+                {
+                    releaseUpdates.Add(update);
+                }
             }
 
             remaining -= take;
-            ExclusiveTouchDiagnostics.Log(
-                "FL player={0} report={1} count={2} remaining={3}->{4} take={5} {6}",
-                PlayerNo + 1, reportSequence, count, remainingBefore, remaining, take, contacts);
-            if (releases.Count > 0)
+            if (diagnosticsEnabled)
             {
-                HandleReleases(releases);
+                ExclusiveTouchDiagnostics.Log(
+                    "FL player={0} report={1} count={2} remaining={3}->{4} take={5} {6}",
+                    PlayerNo + 1, reportSequence, count, remainingBefore, remaining, take, contacts);
+            }
+            if (releaseUpdates.Count > 0)
+            {
+                HandleReleases(releaseUpdates);
             }
             if (remaining == 0)
             {

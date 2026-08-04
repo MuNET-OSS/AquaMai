@@ -10,6 +10,14 @@ namespace LibUsbDotNet.Internal;
 [SuppressUnmanagedCodeSecurity]
 internal static class Kernel32
 {
+	[StructLayout(LayoutKind.Sequential)]
+	private struct NativeWaitHandles
+	{
+		public IntPtr First;
+
+		public IntPtr Second;
+	}
+
 	private const int FORMAT_MESSAGE_FROM_SYSTEM = 4096;
 
 	private static readonly StringBuilder m_sbSysMsg = new StringBuilder(1024);
@@ -22,6 +30,19 @@ internal static class Kernel32
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
 	public static extern bool GetOverlappedResult(SafeHandle hDevice, IntPtr lpOverlapped, out int lpNumberOfBytesTransferred, bool bWait);
+
+	[DllImport("kernel32.dll", EntryPoint = "WaitForMultipleObjects", SetLastError = true)]
+	private static extern int WaitForMultipleObjectsNative(int count, ref NativeWaitHandles handles, bool waitAll, int milliseconds);
+
+	public static int WaitForMultipleObjects(IntPtr first, IntPtr second, int milliseconds)
+	{
+		var handles = new NativeWaitHandles
+		{
+			First = first,
+			Second = second
+		};
+		return WaitForMultipleObjectsNative(2, ref handles, false, milliseconds);
+	}
 
 	public static string FormatSystemMessage(int dwMessageId)
 	{

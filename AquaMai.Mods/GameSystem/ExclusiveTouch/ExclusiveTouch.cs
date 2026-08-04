@@ -63,7 +63,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
     protected virtual string DiagnosticName => "ExclusiveTouch";
 
-    public void Start()
+    public bool Start()
     {
         // 方便组 2P
         UsbDeviceFinder finder;
@@ -88,8 +88,10 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         if (device == null)
         {
             MelonLogger.Msg($"[ExclusiveTouch] Cannot connect {playerNo + 1}P");
+            return false;
         }
-        else
+
+        try
         {
             if (device is WinUsbDevice winUsbDevice)
             {
@@ -98,13 +100,25 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             }
 
             IUsbDevice wholeDevice = device as IUsbDevice;
-            if (wholeDevice != null)
+            if (wholeDevice != null &&
+                (!wholeDevice.SetConfiguration(configuration) || !wholeDevice.ClaimInterface(interfaceNumber)))
             {
-                wholeDevice.SetConfiguration(configuration);
-                wholeDevice.ClaimInterface(interfaceNumber);
+                MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P");
+                device.Close();
+                device = null;
+                return false;
             }
             touchSensorMapper = new TouchSensorMapper(minX, minY, maxX, maxY, radius, flip,
                 aExtraRadius, bExtraRadius, cExtraRadius, dExtraRadius, eExtraRadius);
+
+            for (int i = 0; i < 256; i++)
+            {
+                allFingerPoints[i] = new TouchPoint();
+            }
+
+            Thread readThread = new(ReadThread);
+            readThread.Start();
+            TouchStatusProvider.RegisterTouchStatusProvider(playerNo, GetTouchState);
             Application.quitting += () =>
             {
                 var tmpDevice = device;
@@ -115,15 +129,14 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
                 }
                 tmpDevice.Close();
             };
-
-            for (int i = 0; i < 256; i++)
-            {
-                allFingerPoints[i] = new TouchPoint();
-            }
-
-            Thread readThread = new(ReadThread);
-            readThread.Start();
-            TouchStatusProvider.RegisterTouchStatusProvider(playerNo, GetTouchState);
+            return true;
+        }
+        catch (Exception e)
+        {
+            MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P: {e}");
+            device?.Close();
+            device = null;
+            return false;
         }
     }
 
@@ -131,13 +144,14 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     {
         byte[] buffer = new byte[packetSize];
         var reader = device.OpenEndpointReader(endpoint);
+        using var pinnedBuffer = new PinnedHandle(buffer);
         
         try
         {
             while (device != null)
             {
                 int bytesRead;
-                ErrorCode ec = reader.Read(buffer, 100, out bytesRead); // 100ms 超时
+                ErrorCode ec = reader.Read(pinnedBuffer.Handle, 0, buffer.Length, 100, out bytesRead); // 100ms 超时
 
                 if (ec != ErrorCode.None)
                 {
@@ -187,26 +201,16 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             ApplyFinger(new TouchUpdate(x, y, fingerId, isPressed), Stopwatch.GetTimestamp());
             var state = ComputeActiveMask();
             _touchLatch.Update(state);
-            ExclusiveTouchDiagnostics.Log(
-                "{0} player={1} finger={2} pressed={3} mask=0x{4:X16}",
-                DiagnosticName, playerNo + 1, fingerId, isPressed, state);
-        }
-    }
-
-    protected void BeginTouchFrame()
-    {
-        lock (touchLock)
-        {
-            var now = Stopwatch.GetTimestamp();
-            for (int i = 0; i < allFingerPoints.Length; i++)
+            if (ExclusiveTouchDiagnostics.Enabled)
             {
-                if (allFingerPoints[i].IsActive)
-                    allFingerPoints[i].LastUpdateTick = now;
+                ExclusiveTouchDiagnostics.Log(
+                    "{0} player={1} finger={2} pressed={3} mask=0x{4:X16}",
+                    DiagnosticName, playerNo + 1, fingerId, isPressed, state);
             }
         }
     }
 
-    private void HandleUpdates(IReadOnlyList<TouchUpdate> updates, string eventName, bool replaceState)
+    private void HandleUpdates(List<TouchUpdate> updates, string eventName, bool replaceState)
     {
         lock (touchLock)
         {
@@ -218,25 +222,28 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
                     allFingerPoints[i].IsActive = false;
                 }
             }
-            foreach (var update in updates)
+            for (int i = 0; i < updates.Count; i++)
             {
-                ApplyFinger(update, now);
+                ApplyFinger(updates[i], now);
             }
 
             var state = ComputeActiveMask();
             _touchLatch.Update(state);
-            ExclusiveTouchDiagnostics.Log(
-                "{0} player={1} {2} updates={3} state=0x{4:X16}",
-                DiagnosticName, playerNo + 1, eventName, updates.Count, state);
+            if (ExclusiveTouchDiagnostics.Enabled)
+            {
+                ExclusiveTouchDiagnostics.Log(
+                    "{0} player={1} {2} updates={3} state=0x{4:X16}",
+                    DiagnosticName, playerNo + 1, eventName, updates.Count, state);
+            }
         }
     }
 
-    protected void HandleFrame(IReadOnlyList<TouchUpdate> updates)
+    protected void HandleFrame(List<TouchUpdate> updates)
     {
         HandleUpdates(updates, "frame-commit", replaceState: true);
     }
 
-    protected void HandleReleases(IReadOnlyList<TouchUpdate> updates)
+    protected void HandleReleases(List<TouchUpdate> updates)
     {
         HandleUpdates(updates, "release-commit", replaceState: false);
     }
@@ -257,21 +264,26 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         lock (touchLock)
         {
             var now = Stopwatch.GetTimestamp();
-            var timedOut = new StringBuilder();
+            var diagnosticsEnabled = ExclusiveTouchDiagnostics.Enabled;
+            StringBuilder timedOut = null;
             for (int i = 0; i < allFingerPoints.Length; i++)
             {
                 var point = allFingerPoints[i];
                 if (point.IsActive && (now - point.LastUpdateTick) > TouchTimeoutTicks)
                 {
                     point.IsActive = false;
-                    if (timedOut.Length > 0) timedOut.Append(',');
-                    timedOut.Append(i);
+                    if (diagnosticsEnabled)
+                    {
+                        timedOut ??= new StringBuilder();
+                        if (timedOut.Length > 0) timedOut.Append(',');
+                        timedOut.Append(i);
+                    }
                 }
             }
             var state = ComputeActiveMask();
             _touchLatch.Update(state);
             var result = _touchLatch.Read();
-            if (timedOut.Length > 0 || !_hasDiagnosticRead || result != _lastDiagnosticRead)
+            if (diagnosticsEnabled && (timedOut != null || !_hasDiagnosticRead || result != _lastDiagnosticRead))
             {
                 ExclusiveTouchDiagnostics.Log(
                     "{0} player={1} poll state=0x{2:X16} result=0x{3:X16} timeout=[{4}]",
