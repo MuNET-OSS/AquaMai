@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using LibUsbDotNet.Main;
 using LibUsbDotNet;
+using LibUsbDotNet.WinUsb;
 using MelonLoader;
 using UnityEngine;
 using AquaMai.Core.Helpers;
@@ -90,6 +91,12 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         }
         else
         {
+            if (device is WinUsbDevice winUsbDevice)
+            {
+                // 触摸屏固件不能可靠处理 WinUSB 的选择性挂起
+                winUsbDevice.PowerPolicy.AutoSuspend = false;
+            }
+
             IUsbDevice wholeDevice = device as IUsbDevice;
             if (wholeDevice != null)
             {
