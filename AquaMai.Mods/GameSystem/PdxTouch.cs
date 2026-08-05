@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using AquaMai.Config.Attributes;
 using AquaMai.Mods.GameSystem.ExclusiveTouch;
+using LibUsbDotNet;
 using LibUsbDotNet.Main;
 
 namespace AquaMai.Mods.GameSystem;
@@ -146,6 +147,7 @@ public class PdxTouch
         private const int SlotStart = 2;
         private const int SlotSize = 10;
         private const int SlotsPerReport = 6;
+        private static readonly byte[] MultipleInputModeReport = { 0x04, 0x02, 0x00 };
 
         // 一帧超过 6 个点时会拆成多个报告连续发来，只有首个报告带总数
         private int remaining;
@@ -154,6 +156,17 @@ public class PdxTouch
         private readonly List<TouchUpdate> releaseUpdates = new(SlotsPerReport);
 
         protected override string DiagnosticName => "FL";
+
+        protected override void InitializeDevice(UsbDevice usbDevice)
+        {
+            var setupPacket = new UsbSetupPacket(0x21, 0x09, 0x0304, 0, MultipleInputModeReport.Length);
+            if (!usbDevice.ControlTransfer(ref setupPacket, MultipleInputModeReport,
+                MultipleInputModeReport.Length, out var lengthTransferred) ||
+                lengthTransferred != MultipleInputModeReport.Length)
+            {
+                throw new InvalidOperationException("FLTouch multiple input mode setup failed");
+            }
+        }
 
         protected override void OnTouchData(byte[] data)
         {

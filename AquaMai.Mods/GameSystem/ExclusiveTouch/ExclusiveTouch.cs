@@ -108,6 +108,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
                 device = null;
                 return false;
             }
+            InitializeDevice(device);
             touchSensorMapper = new TouchSensorMapper(minX, minY, maxX, maxY, radius, flip,
                 aExtraRadius, bExtraRadius, cExtraRadius, dExtraRadius, eExtraRadius);
 
@@ -139,6 +140,8 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             return false;
         }
     }
+
+    protected virtual void InitializeDevice(UsbDevice usbDevice) { }
 
     private void ReadThread()
     {
