@@ -20,9 +20,20 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     int timeoutMilliseconds = 20)
 {
     private UsbDevice device;
+    private readonly object deviceLock = new();
+    private volatile bool stopping;
     private TouchSensorMapper touchSensorMapper;
 
-    public bool IsConnected => device != null;
+    public bool IsConnected
+    {
+        get
+        {
+            lock (deviceLock)
+            {
+                return device != null;
+            }
+        }
+    }
 
     protected int PlayerNo => playerNo;
 
@@ -63,52 +74,20 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
     protected virtual string DiagnosticName => "ExclusiveTouch";
 
-    public bool Start()
+    public bool Start(bool logConnectionFailure = true)
     {
-        // 方便组 2P
-        UsbDeviceFinder finder;
-        
-        if (!string.IsNullOrWhiteSpace(serialNumber))
+        stopping = false;
+        if (!TryConnectDevice())
         {
-            // 优先使用序列号
-            finder = new UsbDeviceFinder(vid, pid, serialNumber);
-        }
-        else if (!string.IsNullOrWhiteSpace(locationPath))
-        {
-            // 使用位置路径匹配
-            finder = new UsbDeviceLocationFinder(vid, pid, locationPath);
-        }
-        else
-        {
-            // 使用第一个匹配的设备
-            finder = new UsbDeviceFinder(vid, pid);
-        }
-        
-        device = UsbDevice.OpenUsbDevice(finder);
-        if (device == null)
-        {
-            MelonLogger.Msg($"[ExclusiveTouch] Cannot connect {playerNo + 1}P");
+            if (logConnectionFailure)
+            {
+                MelonLogger.Msg($"[ExclusiveTouch] Cannot connect {playerNo + 1}P");
+            }
             return false;
         }
 
         try
         {
-            if (device is WinUsbDevice winUsbDevice)
-            {
-                // 触摸屏固件不能可靠处理 WinUSB 的选择性挂起
-                winUsbDevice.PowerPolicy.AutoSuspend = false;
-            }
-
-            IUsbDevice wholeDevice = device as IUsbDevice;
-            if (wholeDevice != null &&
-                (!wholeDevice.SetConfiguration(configuration) || !wholeDevice.ClaimInterface(interfaceNumber)))
-            {
-                MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P");
-                device.Close();
-                device = null;
-                return false;
-            }
-            InitializeDevice(device);
             touchSensorMapper = new TouchSensorMapper(minX, minY, maxX, maxY, radius, flip,
                 aExtraRadius, bExtraRadius, cExtraRadius, dExtraRadius, eExtraRadius);
 
@@ -118,61 +97,194 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             }
 
             Thread readThread = new(ReadThread);
+            readThread.IsBackground = true;
             readThread.Start();
-            TouchStatusProvider.RegisterTouchStatusProvider(playerNo, GetTouchState);
             Application.quitting += () =>
             {
-                var tmpDevice = device;
-                device = null;
-                if (wholeDevice != null)
-                {
-                    wholeDevice.ReleaseInterface(interfaceNumber);
-                }
-                tmpDevice.Close();
+                stopping = true;
+                CloseCurrentDevice();
             };
             return true;
         }
         catch (Exception e)
         {
             MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P: {e}");
-            device?.Close();
-            device = null;
+            CloseCurrentDevice();
             return false;
         }
     }
 
     protected virtual void InitializeDevice(UsbDevice usbDevice) { }
 
+    private UsbDeviceFinder CreateFinder()
+    {
+        // 方便组 2P
+        if (!string.IsNullOrWhiteSpace(serialNumber))
+        {
+            // 优先使用序列号
+            return new UsbDeviceFinder(vid, pid, serialNumber);
+        }
+
+        if (!string.IsNullOrWhiteSpace(locationPath))
+        {
+            // 使用位置路径匹配
+            return new UsbDeviceLocationFinder(vid, pid, locationPath);
+        }
+
+        // 使用第一个匹配的设备
+        return new UsbDeviceFinder(vid, pid);
+    }
+
+    private bool TryConnectDevice()
+    {
+        UsbDevice newDevice = null;
+        try
+        {
+            newDevice = UsbDevice.OpenUsbDevice(CreateFinder());
+            if (newDevice == null) return false;
+
+            if (newDevice is WinUsbDevice winUsbDevice)
+            {
+                // 触摸屏固件不能可靠处理 WinUSB 的选择性挂起
+                winUsbDevice.PowerPolicy.AutoSuspend = false;
+            }
+
+            IUsbDevice wholeDevice = newDevice as IUsbDevice;
+            if (wholeDevice != null &&
+                (!wholeDevice.SetConfiguration(configuration) || !wholeDevice.ClaimInterface(interfaceNumber)))
+            {
+                throw new InvalidOperationException("USB interface setup failed");
+            }
+
+            InitializeDevice(newDevice);
+            lock (deviceLock)
+            {
+                if (stopping)
+                {
+                    CloseDevice(newDevice);
+                    return false;
+                }
+
+                device = newDevice;
+            }
+            ExclusiveTouchDiagnostics.Log(
+                "{0} player={1} connected driver={2}",
+                DiagnosticName, playerNo + 1, newDevice.DriverMode);
+            return true;
+        }
+        catch (Exception e)
+        {
+            MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P: {e.Message}");
+            if (newDevice != null) CloseDevice(newDevice);
+            return false;
+        }
+    }
+
+    private void CloseCurrentDevice()
+    {
+        UsbDevice oldDevice;
+        lock (deviceLock)
+        {
+            oldDevice = device;
+            device = null;
+        }
+
+        if (oldDevice != null) CloseDevice(oldDevice);
+    }
+
+    private bool IsCurrentDevice(UsbDevice target)
+    {
+        lock (deviceLock)
+        {
+            return ReferenceEquals(target, device);
+        }
+    }
+
+    private void CloseDevice(UsbDevice target)
+    {
+        try
+        {
+            if (target is IUsbDevice wholeDevice)
+            {
+                wholeDevice.ReleaseInterface(interfaceNumber);
+            }
+        }
+        catch (Exception e)
+        {
+            MelonLogger.Warning($"[ExclusiveTouch] Cannot release {playerNo + 1}P interface: {e.Message}");
+        }
+
+        try
+        {
+            target.Close();
+        }
+        catch (Exception e)
+        {
+            MelonLogger.Warning($"[ExclusiveTouch] Cannot close {playerNo + 1}P device: {e.Message}");
+        }
+    }
+
     private void ReadThread()
     {
         byte[] buffer = new byte[packetSize];
-        var reader = device.OpenEndpointReader(endpoint);
         using var pinnedBuffer = new PinnedHandle(buffer);
-        
+
         try
         {
-            while (device != null)
+            while (!stopping)
             {
-                int bytesRead;
-                ErrorCode ec = reader.Read(pinnedBuffer.Handle, 0, buffer.Length, 100, out bytesRead); // 100ms 超时
-
-                if (ec != ErrorCode.None)
+                UsbDevice currentDevice;
+                lock (deviceLock)
                 {
-                    if (ec == ErrorCode.IoTimedOut) continue; // 超时就继续等
-                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误: {ec}");
-                    break;
+                    currentDevice = device;
                 }
 
-                if (bytesRead > 0)
+                if (currentDevice == null)
                 {
-                    OnTouchData(buffer);
+                    Thread.Sleep(1000);
+                    TryConnectDevice();
+                    continue;
+                }
+
+                try
+                {
+                    using var reader = currentDevice.OpenEndpointReader(endpoint);
+                    while (!stopping)
+                    {
+                        int bytesRead;
+                        ErrorCode ec = reader.Read(pinnedBuffer.Handle, 0, buffer.Length, 100, out bytesRead); // 100ms 超时
+
+                        if (ec == ErrorCode.IoTimedOut) continue; // 超时就继续等
+                        if (ec != ErrorCode.None)
+                        {
+                            MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误: {ec}，尝试重连");
+                            ExclusiveTouchDiagnostics.Log(
+                                "{0} player={1} reconnect reason=read-error code={2}",
+                                DiagnosticName, playerNo + 1, ec);
+                            CloseCurrentDevice();
+                            break;
+                        }
+
+                        if (bytesRead > 0 && IsCurrentDevice(currentDevice))
+                        {
+                            OnTouchData(buffer);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (stopping) break;
+                    MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取异常: {e.Message}，尝试重连");
+                    ExclusiveTouchDiagnostics.Log(
+                        "{0} player={1} reconnect reason=read-exception error={2}",
+                        DiagnosticName, playerNo + 1, e.Message);
+                    CloseCurrentDevice();
                 }
             }
         }
         finally
         {
-            // 确保 reader 被正确释放
-            reader?.Dispose();
+            CloseCurrentDevice();
         }
     }
 
@@ -261,7 +373,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         }
         return mask;
     }
-    private ulong GetTouchState(int player)
+    internal ulong GetTouchState(int player)
     {
         if (player != playerNo) return 0;
         lock (touchLock)

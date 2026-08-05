@@ -159,6 +159,14 @@ public class PdxTouch
 
         protected override void InitializeDevice(UsbDevice usbDevice)
         {
+            var reportInfo = new byte[2];
+            var getReportPacket = new UsbSetupPacket(0xA1, 0x01, 0x0303, 0, reportInfo.Length);
+            if (!usbDevice.ControlTransfer(ref getReportPacket, reportInfo, reportInfo.Length, out var reportInfoLength) ||
+                reportInfoLength != reportInfo.Length || reportInfo[0] != 0x03)
+            {
+                throw new InvalidOperationException("FLTouch capability report query failed");
+            }
+
             var setupPacket = new UsbSetupPacket(0x21, 0x09, 0x0304, 0, MultipleInputModeReport.Length);
             if (!usbDevice.ControlTransfer(ref setupPacket, MultipleInputModeReport,
                 MultipleInputModeReport.Length, out var lengthTransferred) ||
