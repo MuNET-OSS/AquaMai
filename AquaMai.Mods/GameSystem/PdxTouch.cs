@@ -154,8 +154,32 @@ public class PdxTouch
         private int reportSequence;
         private readonly List<TouchUpdate> pendingUpdates = new(SlotsPerReport * 2);
         private readonly List<TouchUpdate> releaseUpdates = new(SlotsPerReport);
+        private readonly object reportLock = new();
 
         protected override string DiagnosticName => "FL";
+
+        protected override void OnDeviceConnected()
+        {
+            lock (reportLock)
+            {
+                ResetFrameState();
+            }
+        }
+
+        protected override void OnDeviceDisconnected()
+        {
+            lock (reportLock)
+            {
+                ResetFrameState();
+            }
+        }
+
+        private void ResetFrameState()
+        {
+            remaining = 0;
+            pendingUpdates.Clear();
+            releaseUpdates.Clear();
+        }
 
         protected override void InitializeDevice(UsbDevice usbDevice)
         {
@@ -177,6 +201,14 @@ public class PdxTouch
         }
 
         protected override void OnTouchData(byte[] data)
+        {
+            lock (reportLock)
+            {
+                OnTouchDataCore(data);
+            }
+        }
+
+        private void OnTouchDataCore(byte[] data)
         {
             if (data[0] != ReportId) return;
 

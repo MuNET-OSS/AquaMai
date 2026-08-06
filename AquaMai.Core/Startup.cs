@@ -17,6 +17,9 @@ public class Startup
 
     private static bool _hasErrors;
 
+    private static readonly object _patchLock = new();
+    private static readonly HashSet<Type> _appliedPatches = [];
+
     private static bool _uiInit;
 
     private enum ModLifecycleMethod
@@ -106,18 +109,24 @@ public class Startup
 
     public static void ApplyPatch(Type type)
     {
-        MelonLogger.Msg($"> Applying {type}");
-        try
+        lock (_patchLock)
         {
-            InvokeLifecycleMethod(type, ModLifecycleMethod.OnBeforePatch);
-            _harmony.PatchAll(type);
-            InvokeLifecycleMethod(type, ModLifecycleMethod.OnAfterPatch);
-        }
-        catch (Exception e)
-        {
-            MelonLogger.Error($"Failed to patch {type}: {e}");
-            InvokeLifecycleMethod(type, ModLifecycleMethod.OnPatchError);
-            _hasErrors = true;
+            if (_appliedPatches.Contains(type)) return;
+
+            MelonLogger.Msg($"> Applying {type}");
+            try
+            {
+                InvokeLifecycleMethod(type, ModLifecycleMethod.OnBeforePatch);
+                _harmony.PatchAll(type);
+                InvokeLifecycleMethod(type, ModLifecycleMethod.OnAfterPatch);
+                _appliedPatches.Add(type);
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Error($"Failed to patch {type}: {e}");
+                InvokeLifecycleMethod(type, ModLifecycleMethod.OnPatchError);
+                _hasErrors = true;
+            }
         }
     }
 

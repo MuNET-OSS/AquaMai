@@ -74,6 +74,10 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
     protected virtual string DiagnosticName => "ExclusiveTouch";
 
+    protected virtual void OnDeviceConnected() { }
+
+    protected virtual void OnDeviceDisconnected() { }
+
     public bool Start(bool logConnectionFailure = true)
     {
         stopping = false;
@@ -157,6 +161,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             }
 
             InitializeDevice(newDevice);
+            OnDeviceConnected();
             lock (deviceLock)
             {
                 if (stopping)
@@ -189,7 +194,11 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
             device = null;
         }
 
-        if (oldDevice != null) CloseDevice(oldDevice);
+        if (oldDevice != null)
+        {
+            CloseDevice(oldDevice);
+            OnDeviceDisconnected();
+        }
     }
 
     private bool IsCurrentDevice(UsbDevice target)

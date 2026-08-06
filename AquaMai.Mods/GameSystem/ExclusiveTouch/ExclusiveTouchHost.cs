@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using AquaMai.Core;
 using AquaMai.Core.Helpers;
 using AquaMai.Mods.GameSettings;
 using MelonLoader;
@@ -94,6 +95,7 @@ public static class ExclusiveTouchHost
     private static void OnDeviceConnected(string tag, int playerNo)
     {
         JudgeAdjust.shouldEnableImplicitly = true;
+        Startup.ApplyPatch(typeof(JudgeAdjust));
         if (playerNo == 0) JudgeAdjust.b_1P += 1.0;
         else JudgeAdjust.b_2P += 1.0;
         MelonLogger.Msg($"[{tag}] {playerNo + 1}P connected");
