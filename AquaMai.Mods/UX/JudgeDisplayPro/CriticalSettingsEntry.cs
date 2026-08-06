@@ -2,7 +2,7 @@ using AquaMai.Core.Types;
 
 namespace AquaMai.Mods.UX.JudgeDisplayPro;
 
-public class CriticalSettingsEntry : IPlayerSettingsItem
+public class CriticalSettingsEntry : SettingsEntryBase, IPlayerSettingsItem
 {
     public int Sort => 152;
 
@@ -43,13 +43,13 @@ public class CriticalSettingsEntry : IPlayerSettingsItem
             case CriticalDisplayMode.OnBreak:
                 return "只有绝赞开启大P，并显示";
             case CriticalDisplayMode.OffBreak:
-                return "绝赞开启大P，但不显示";
+                return "只有绝赞开启大P，但不显示";
             case CriticalDisplayMode.OnAll:
                 return "所有音符开启大P，并显示";
             case CriticalDisplayMode.OnAllShowBreak:
-                return "所有音符开启大P，只有绝赞显示";
+                return "所有音符开启大P，仅绝赞显示";
             case CriticalDisplayMode.OffAll:
-                return "所有音符开启大P，但是不显示";
+                return "所有音符开启大P，但不显示";
             default:
                 return "未知";
         }
@@ -60,9 +60,18 @@ public class CriticalSettingsEntry : IPlayerSettingsItem
         return (int)JudgeDisplayPro.userSettings[player].CriticalDisplayMode;
     }
 
-    public string GetSpriteFile(int player)
+    public override string GetSpriteSuffix(int player)
     {
-        return "UI_OPT_00_00";
+        return JudgeDisplayPro.userSettings[player].CriticalDisplayMode switch
+        {
+            CriticalDisplayMode.None => "不开启大P",
+            CriticalDisplayMode.OnBreak => "只有绝赞开启大P，并显示",
+            CriticalDisplayMode.OffBreak => "只有绝赞开启大P，但不显示",
+            CriticalDisplayMode.OnAll => "所有的音符开启大P，并显示",
+            CriticalDisplayMode.OnAllShowBreak => "所有的音符开启大P，仅绝赞显示",
+            CriticalDisplayMode.OffAll => "所有音符开启大P，但不显示",
+            _ => null,
+        };
     }
 
     public void SubOption(int player)

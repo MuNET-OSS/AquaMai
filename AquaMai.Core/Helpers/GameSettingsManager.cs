@@ -29,17 +29,21 @@ public static class GameSettingsManager
     public static readonly string NormalTag = OptionRootID.NormalColorTag.GetName();
 
     private static bool isPatched = false;
+    private static readonly object patchLock = new();
 
     private static readonly List<IPlayerSettingsItem> settings = [];
     public static void RegisterSetting(IPlayerSettingsItem setting)
     {
         settings.Add(setting);
         settings.Sort((a, b) => a.Sort.CompareTo(b.Sort));
-        if (!isPatched)
+        lock (patchLock)
         {
-            isPatched = true;
-            Startup.ApplyPatch(typeof(GameSettingsManager));
-            Startup.ApplyPatch(typeof(PatchOptionCategoryIDExtension));
+            if (!isPatched)
+            {
+                isPatched = true;
+                Startup.ApplyPatch(typeof(GameSettingsManager));
+                Startup.ApplyPatch(typeof(PatchOptionCategoryIDExtension));
+            }
         }
     }
 

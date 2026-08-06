@@ -85,6 +85,9 @@
     <EmbeddedResource Include="level.ab">
       <LogicalName>level.ab</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="judgedisplaypro">
+      <LogicalName>judgedisplaypro</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

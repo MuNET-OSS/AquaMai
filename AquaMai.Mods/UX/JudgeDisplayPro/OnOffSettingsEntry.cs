@@ -8,7 +8,7 @@ public class OnOffSettingsEntry : IPlayerSettingsItem
 
     public string Name => "启用高级判定表示";
 
-    public string Detail => "影响接下来 4 个选项是否生效，还是跟随游戏自带的判定表示";
+    public string Detail => "影响接下来 5 个选项是否生效，还是跟随游戏自带的判定表示";
 
     public void AddOption(int player)
     {
@@ -42,7 +42,7 @@ public class OnOffSettingsEntry : IPlayerSettingsItem
 
     public string GetSpriteFile(int player)
     {
-        return "UI_OPT_00_00";
+        return JudgeDisplayPro.userSettings[player].IsEnable ? "AQM_JudgeDisplayPro_ON" : "UI_OPT_B_05_01";
     }
 
     public void SubOption(int player)

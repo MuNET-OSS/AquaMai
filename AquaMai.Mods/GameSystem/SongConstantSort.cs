@@ -73,9 +73,8 @@ public class SongConstantSort
         {
             var s = BuildInfo.ModAssembly.Assembly.GetManifestResourceStream("level.ab");
             if (s != null) return s;
-            s = BuildInfo.ModAssembly.Assembly.GetManifestResourceStream("level.ab.compressed");
-            if (s == null) return null;
-            return new DeflateStream(s, CompressionMode.Decompress);
+            // 其实并不会被压缩，ab 也没法再被压缩了
+            return null;
         }
 
         public static Sprite GetSprite(int categoryId)

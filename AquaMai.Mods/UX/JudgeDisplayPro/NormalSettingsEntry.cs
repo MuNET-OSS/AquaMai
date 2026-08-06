@@ -10,7 +10,7 @@ public enum NormalSettingsType
     Good,
 }
 
-public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
+public class NormalSettingsEntry(NormalSettingsType type) : SettingsEntryBase, IPlayerSettingsItem
 {
     public int Sort => type switch
     {
@@ -105,10 +105,10 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         };
         return currentValue switch
         {
-            NormalDisplayMode.JudgeOnly => "只显示判定",
-            NormalDisplayMode.All => "显示判定 + FAST / LATE",
-            NormalDisplayMode.TimingOnly => "只显示FAST / LATE",
-            NormalDisplayMode.ColoredJudge => "显示蓝色或者红色的判定文字",
+            NormalDisplayMode.JudgeOnly => "仅显示判定",
+            NormalDisplayMode.All => "显示判定 + FAST LATE",
+            NormalDisplayMode.TimingOnly => "仅显示FAST / LATE",
+            NormalDisplayMode.ColoredJudge => "仅显示判定颜色",
             NormalDisplayMode.None => "不显示",
             _ => "未知",
         };
@@ -126,9 +126,52 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         };
     }
 
-    public string GetSpriteFile(int player)
+    public override string GetSpriteSuffix(int player)
     {
-        return "UI_OPT_00_00";
+        switch (type)
+        {
+            case NormalSettingsType.Perfect:
+                return JudgeDisplayPro.userSettings[player].PerfectDisplayMode switch
+                {
+                    NormalDisplayMode.JudgeOnly => "小P_仅显示判定",
+                    NormalDisplayMode.All => "小P_显示判定+FAST LATE",
+                    NormalDisplayMode.TimingOnly => "小P_仅显示FAST LATE",
+                    NormalDisplayMode.ColoredJudge => "小P_仅显示判定颜色",
+                    NormalDisplayMode.None => "小P_不显示",
+                    _ => null,
+                };
+            case NormalSettingsType.PerfectBreak:
+                return JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode switch
+                {
+                    NormalDisplayMode.JudgeOnly => "小P_仅显示判定",
+                    NormalDisplayMode.All => "小P_显示判定+FAST LATE",
+                    NormalDisplayMode.TimingOnly => "小P_仅显示FAST LATE",
+                    NormalDisplayMode.ColoredJudge => "小P_仅显示判定颜色",
+                    NormalDisplayMode.None => "小P_不显示",
+                    _ => null,
+                };
+            case NormalSettingsType.Great:
+                return JudgeDisplayPro.userSettings[player].GreatDisplayMode switch
+                {
+                    NormalDisplayMode.JudgeOnly => "GREAT_仅显示判定",
+                    NormalDisplayMode.All => "GREAT_显示判定+FAST LATE",
+                    NormalDisplayMode.TimingOnly => "GREAT_仅显示FAST LATE",
+                    NormalDisplayMode.ColoredJudge => "GREAT_仅显示判定颜色",
+                    NormalDisplayMode.None => "GREAT_不显示判定",
+                    _ => null,
+                };
+            case NormalSettingsType.Good:
+                return JudgeDisplayPro.userSettings[player].GoodDisplayMode switch
+                {
+                    NormalDisplayMode.JudgeOnly => "GOOD_仅显示判定",
+                    NormalDisplayMode.All => "GOOD_显示判定+FAST LATE",
+                    NormalDisplayMode.TimingOnly => "GOOD_仅显示FAST LATE",
+                    NormalDisplayMode.ColoredJudge => "GOOD_仅显示颜色判定",
+                    NormalDisplayMode.None => "GOOD_不显示判定",
+                    _ => null,
+                };
+        }
+        return null;
     }
 
     public void SubOption(int player)
