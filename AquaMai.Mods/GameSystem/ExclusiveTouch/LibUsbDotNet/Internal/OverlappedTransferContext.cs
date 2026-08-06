@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Threading;
 using LibUsbDotNet.Main;
 
 namespace LibUsbDotNet.Internal;
@@ -46,7 +45,10 @@ internal class OverlappedTransferContext : UsbTransfer
 			throw new UsbException(this, "Repeated calls to wait with a submit is not allowed.");
 		}
 		transferredCount = 0;
-		int num = WaitHandle.WaitAny(new WaitHandle[2] { mTransferCompleteEvent, mTransferCancelEvent }, mTimeout);
+		int num = Kernel32.WaitForMultipleObjects(
+			mTransferCompleteEvent.GetSafeWaitHandle().DangerousGetHandle(),
+			mTransferCancelEvent.GetSafeWaitHandle().DangerousGetHandle(),
+			mTimeout);
 		if (num == 258 && !cancel)
 		{
 			return ErrorCode.IoTimedOut;

@@ -180,7 +180,16 @@ public static class Shim
                 return (PacketUpsertUserAll)ctor1.Invoke(args);
             };
         }
-        else if (type.GetConstructor([typeof(int), typeof(UserData), typeof(string), typeof(Action<int>), typeof(Action<PacketStatus>)]) is ConstructorInfo ctor2)
+        if (type.GetConstructor([typeof(int), typeof(UserData), typeof(int), typeof(Action<int>), typeof(Action<PacketStatus>)]) is ConstructorInfo ctor3)
+        {
+            return (index, src, onDone, onError) =>
+            {
+                var playLogCount = (src.IsEntry && !Singleton<GamePlayManager>.Instance.IsEmpty()) ? Singleton<GamePlayManager>.Instance.GetScoreListCount() : 0;
+                var args = new object[] { index, src, playLogCount, onDone, onError };
+                return (PacketUpsertUserAll)ctor3.Invoke(args);
+            };
+        }
+        if (type.GetConstructor([typeof(int), typeof(UserData), typeof(string), typeof(Action<int>), typeof(Action<PacketStatus>)]) is ConstructorInfo ctor2)
         {
             return (index, src, onDone, onError) =>
             {

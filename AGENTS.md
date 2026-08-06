@@ -18,8 +18,7 @@ AquaMai/
 ├── AquaMai.ErrorReport/      # Standalone crash report WinForms app
 ├── MuMod/                    # Separate auto-updater mod (downloads + signature-verifies AquaMai)
 ├── Libs/                     # Game DLLs (Assembly-CSharp, UnityEngine, etc.) — gitignored contents
-├── Output/                   # Build artifacts
-└── tools/                    # NuGet/Cake build tooling
+└── Output/                   # Build artifacts
 ```
 
 ## WHERE TO LOOK

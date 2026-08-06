@@ -12,11 +12,15 @@ namespace AquaMai.Mods.Fix;
 public class DisableReboot
 {
     private static bool forceOfflineTimerExists = false;
+    private static bool rebootRemaingMinutesExists = false;
 
     public static void OnBeforePatch()
     {
         forceOfflineTimerExists = typeof(MaintenanceTimer).GetProperty(
             "ForceOfflineRemainingMinutes",
+            BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic) != null;
+        rebootRemaingMinutesExists = typeof(MaintenanceTimer).GetProperty(
+            "RebootRemaingMinutes",
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic) != null;
     }
 
@@ -86,6 +90,15 @@ public class DisableReboot
     [HarmonyPrefix]
     [HarmonyPatch(typeof(MaintenanceTimer), "ForceOfflineRemainingMinutes", MethodType.Getter)]
     public static bool ForceOfflineRemainingMinutes(ref int __result)
+    {
+        __result = 600;
+        return false;
+    }
+
+    [EnableIf(nameof(rebootRemaingMinutesExists))]
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(MaintenanceTimer), "RebootRemaingMinutes", MethodType.Getter)]
+    public static bool RebootRemaingMinutes(ref int __result)
     {
         __result = 600;
         return false;
