@@ -8,7 +8,7 @@ public abstract class SettingsEntryBase
     {
         var suffix = GetSpriteSuffix(player);
         if(suffix == null) return "UI_OPT_00_00";
-        return "AQM_JudgeDisplayPro_" + GetSpriteSuffix(player);
+        return "AQM_JudgeDisplayPro_" + suffix;
     }
 
     public abstract string GetSpriteSuffix(int player);
