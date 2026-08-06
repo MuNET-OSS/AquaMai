@@ -55,11 +55,14 @@ public partial class JudgeDisplayPro
         __state.Fast = __instance.Fast;
         __state.Late = __instance.Late;
         __state.WasJudged = !__instance.IsEnable || __instance.IsTrackSkip;
+        var isBreak = false;
         if (__instance.IsEnable && !__instance.IsTrackSkip)
         {
-            __state.WasJudged = NotesManager.Instance(____monitorIndex).getReader().GetNoteList()[index].isJudged;
+            var note = NotesManager.Instance(____monitorIndex).getReader().GetNoteList()[index];
+            __state.WasJudged = note.isJudged;
+            isBreak = note.type.isBreak() || note.type.isExBreak();
         }
-        __state.ShouldCount = ShouldCountFastLate(settings, timing);
+        __state.ShouldCount = ShouldCountFastLate(settings, timing, isBreak);
         __state.IsFast = timing is NoteJudge.ETiming.FastGood or
             NoteJudge.ETiming.FastGreat3rd or NoteJudge.ETiming.FastGreat2nd or NoteJudge.ETiming.FastGreat or
             NoteJudge.ETiming.FastPerfect2nd or NoteJudge.ETiming.FastPerfect;
@@ -114,7 +117,7 @@ public partial class JudgeDisplayPro
         };
     }
 
-    private static bool ShouldCountFastLate(UserSettings settings, NoteJudge.ETiming timing)
+    private static bool ShouldCountFastLate(UserSettings settings, NoteJudge.ETiming timing, bool isBreak)
     {
         var mode = timing switch
         {
@@ -122,7 +125,7 @@ public partial class JudgeDisplayPro
             NoteJudge.ETiming.FastGreat3rd or NoteJudge.ETiming.FastGreat2nd or NoteJudge.ETiming.FastGreat or
                 NoteJudge.ETiming.LateGreat3rd or NoteJudge.ETiming.LateGreat2nd or NoteJudge.ETiming.LateGreat => settings.GreatDisplayMode,
             NoteJudge.ETiming.FastPerfect2nd or NoteJudge.ETiming.FastPerfect or
-                NoteJudge.ETiming.LatePerfect2nd or NoteJudge.ETiming.LatePerfect => settings.PerfectDisplayMode,
+                NoteJudge.ETiming.LatePerfect2nd or NoteJudge.ETiming.LatePerfect => settings.GetPerfectDisplayMode(isBreak),
             _ => NormalDisplayMode.None,
         };
 

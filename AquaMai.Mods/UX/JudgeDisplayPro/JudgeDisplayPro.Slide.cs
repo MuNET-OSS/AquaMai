@@ -105,7 +105,7 @@ public partial class JudgeDisplayPro
                 break;
             case NoteJudge.ETiming.FastPerfect2nd:
             case NoteJudge.ETiming.FastPerfect:
-                switch (userSettings[monitorIndex].PerfectDisplayMode)
+                switch (userSettings[monitorIndex].GetPerfectDisplayMode(isBreak))
                 {
                     case NormalDisplayMode.JudgeOnly:
                         ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle];
@@ -122,7 +122,7 @@ public partial class JudgeDisplayPro
                 break;
             case NoteJudge.ETiming.LatePerfect2nd:
             case NoteJudge.ETiming.LatePerfect:
-                switch (userSettings[monitorIndex].PerfectDisplayMode)
+                switch (userSettings[monitorIndex].GetPerfectDisplayMode(isBreak))
                 {
                     case NormalDisplayMode.JudgeOnly:
                         ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle];
@@ -141,7 +141,7 @@ public partial class JudgeDisplayPro
                 switch (GetCriticalDisplayAction(userSettings[monitorIndex].CriticalDisplayMode, isBreak))
                 {
                     case CriticalDisplayAction.AsPerfect:
-                        switch (userSettings[monitorIndex].PerfectDisplayMode)
+                        switch (userSettings[monitorIndex].GetPerfectDisplayMode(isBreak))
                         {
                             case NormalDisplayMode.JudgeOnly:
                             case NormalDisplayMode.All:

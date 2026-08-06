@@ -17,6 +17,7 @@ public partial class JudgeDisplayPro
         GameSettingsManager.RegisterSetting(new OnOffSettingsEntry());
         GameSettingsManager.RegisterSetting(new CriticalSettingsEntry());
         GameSettingsManager.RegisterSetting(new NormalSettingsEntry(NormalSettingsType.Perfect));
+        GameSettingsManager.RegisterSetting(new NormalSettingsEntry(NormalSettingsType.PerfectBreak));
         GameSettingsManager.RegisterSetting(new NormalSettingsEntry(NormalSettingsType.Great));
         GameSettingsManager.RegisterSetting(new NormalSettingsEntry(NormalSettingsType.Good));
     }

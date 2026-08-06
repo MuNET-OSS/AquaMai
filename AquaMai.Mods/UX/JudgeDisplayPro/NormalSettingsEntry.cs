@@ -5,6 +5,7 @@ namespace AquaMai.Mods.UX.JudgeDisplayPro;
 public enum NormalSettingsType
 {
     Perfect,
+    PerfectBreak,
     Great,
     Good,
 }
@@ -14,14 +15,16 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
     public int Sort => type switch
     {
         NormalSettingsType.Perfect => 153,
-        NormalSettingsType.Great => 154,
-        NormalSettingsType.Good => 155,
+        NormalSettingsType.PerfectBreak => 154,
+        NormalSettingsType.Great => 155,
+        NormalSettingsType.Good => 156,
         _ => 0,
     };
 
     public string Name => type switch
     {
         NormalSettingsType.Perfect => "PERFECT",
+        NormalSettingsType.PerfectBreak => "PERFECT (BREAK)",
         NormalSettingsType.Great => "GREAT",
         NormalSettingsType.Good => "GOOD",
         _ => "UNKNOWN",
@@ -30,6 +33,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
     public string Detail => type switch
     {
         NormalSettingsType.Perfect => "影响小P的显示方式",
+        NormalSettingsType.PerfectBreak => "影响绝赞小P的显示方式",
         NormalSettingsType.Great => "影响GREAT的显示方式",
         NormalSettingsType.Good => "影响GOOD的显示方式",
         _ => "未知",
@@ -45,6 +49,9 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         {
             case NormalSettingsType.Perfect:
                 JudgeDisplayPro.userSettings[player].PerfectDisplayMode++;
+                break;
+            case NormalSettingsType.PerfectBreak:
+                JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode++;
                 break;
             case NormalSettingsType.Great:
                 JudgeDisplayPro.userSettings[player].GreatDisplayMode++;
@@ -62,6 +69,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         return type switch
         {
             NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode > MinValue,
+            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode > MinValue,
             NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode > MinValue,
             NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode > MinValue,
             _ => false,
@@ -73,6 +81,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         return type switch
         {
             NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode < MaxValue,
+            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode < MaxValue,
             NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode < MaxValue,
             NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode < MaxValue,
             _ => false,
@@ -89,6 +98,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         var currentValue = type switch
         {
             NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode,
+            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode,
             NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode,
             NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode,
             _ => NormalDisplayMode.JudgeOnly,
@@ -109,6 +119,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         return type switch
         {
             NormalSettingsType.Perfect => (int)JudgeDisplayPro.userSettings[player].PerfectDisplayMode,
+            NormalSettingsType.PerfectBreak => (int)JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode,
             NormalSettingsType.Great => (int)JudgeDisplayPro.userSettings[player].GreatDisplayMode,
             NormalSettingsType.Good => (int)JudgeDisplayPro.userSettings[player].GoodDisplayMode,
             _ => 0,
@@ -127,6 +138,9 @@ public class NormalSettingsEntry(NormalSettingsType type) : IPlayerSettingsItem
         {
             case NormalSettingsType.Perfect:
                 JudgeDisplayPro.userSettings[player].PerfectDisplayMode--;
+                break;
+            case NormalSettingsType.PerfectBreak:
+                JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode--;
                 break;
             case NormalSettingsType.Great:
                 JudgeDisplayPro.userSettings[player].GreatDisplayMode--;

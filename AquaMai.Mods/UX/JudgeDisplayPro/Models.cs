@@ -43,12 +43,18 @@ public class UserSettings
     public bool IsEnable = false;
     public CriticalDisplayMode CriticalDisplayMode = CriticalDisplayMode.None;
     public NormalDisplayMode PerfectDisplayMode = NormalDisplayMode.JudgeOnly;
+    public NormalDisplayMode BreakPerfectDisplayMode = NormalDisplayMode.JudgeOnly;
     public NormalDisplayMode GreatDisplayMode = NormalDisplayMode.JudgeOnly;
     public NormalDisplayMode GoodDisplayMode = NormalDisplayMode.JudgeOnly;
 
+    public NormalDisplayMode GetPerfectDisplayMode(bool isBreak)
+    {
+        return isBreak ? BreakPerfectDisplayMode : PerfectDisplayMode;
+    }
+
     public string Serialize()
     {
-        return $"{IsEnable},{CriticalDisplayMode},{PerfectDisplayMode},{GreatDisplayMode},{GoodDisplayMode}";
+        return $"{IsEnable},{CriticalDisplayMode},{PerfectDisplayMode},{BreakPerfectDisplayMode},{GreatDisplayMode},{GoodDisplayMode}";
     }
 
     public void Deserialize(string data)
@@ -57,7 +63,17 @@ public class UserSettings
         IsEnable = bool.Parse(values[0]);
         CriticalDisplayMode = (CriticalDisplayMode)Enum.Parse(typeof(CriticalDisplayMode), values[1]);
         PerfectDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[2]);
-        GreatDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[3]);
-        GoodDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[4]);
+        if (values.Length >= 6)
+        {
+            BreakPerfectDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[3]);
+            GreatDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[4]);
+            GoodDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[5]);
+        }
+        else
+        {
+            BreakPerfectDisplayMode = PerfectDisplayMode;
+            GreatDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[3]);
+            GoodDisplayMode = (NormalDisplayMode)Enum.Parse(typeof(NormalDisplayMode), values[4]);
+        }
     }
 }
