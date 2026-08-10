@@ -64,29 +64,9 @@ public class NormalSettingsEntry(NormalSettingsType type) : SettingsEntryBase, I
         }
     }
 
-    public bool GetIsLeftButtonActive(int player)
-    {
-        return type switch
-        {
-            NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode > MinValue,
-            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode > MinValue,
-            NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode > MinValue,
-            NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode > MinValue,
-            _ => false,
-        };
-    }
+    public bool GetIsLeftButtonActive(int player) => GetOptionMode(player) > MinValue;
 
-    public bool GetIsRightButtonActive(int player)
-    {
-        return type switch
-        {
-            NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode < MaxValue,
-            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode < MaxValue,
-            NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode < MaxValue,
-            NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode < MaxValue,
-            _ => false,
-        };
-    }
+    public bool GetIsRightButtonActive(int player) => GetOptionMode(player) < MaxValue;
 
     public int GetOptionMax(int player)
     {
@@ -95,14 +75,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : SettingsEntryBase, I
 
     public string GetOptionValue(int player)
     {
-        var currentValue = type switch
-        {
-            NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode,
-            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode,
-            NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode,
-            NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode,
-            _ => NormalDisplayMode.JudgeOnly,
-        };
+        var currentValue = GetOptionMode(player);
         return currentValue switch
         {
             NormalDisplayMode.JudgeOnly => "仅显示判定",
@@ -114,64 +87,43 @@ public class NormalSettingsEntry(NormalSettingsType type) : SettingsEntryBase, I
         };
     }
 
-    public int GetOptionValueIndex(int player)
+    private NormalDisplayMode GetOptionMode(int player)
     {
         return type switch
         {
-            NormalSettingsType.Perfect => (int)JudgeDisplayPro.userSettings[player].PerfectDisplayMode,
-            NormalSettingsType.PerfectBreak => (int)JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode,
-            NormalSettingsType.Great => (int)JudgeDisplayPro.userSettings[player].GreatDisplayMode,
-            NormalSettingsType.Good => (int)JudgeDisplayPro.userSettings[player].GoodDisplayMode,
-            _ => 0,
+            NormalSettingsType.Perfect => JudgeDisplayPro.userSettings[player].PerfectDisplayMode,
+            NormalSettingsType.PerfectBreak => JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode,
+            NormalSettingsType.Great => JudgeDisplayPro.userSettings[player].GreatDisplayMode,
+            NormalSettingsType.Good => JudgeDisplayPro.userSettings[player].GoodDisplayMode,
+            _ => NormalDisplayMode.JudgeOnly,
         };
     }
 
+    public int GetOptionValueIndex(int player) => (int)GetOptionMode(player);
+
     public override string GetSpriteSuffix(int player)
     {
-        switch (type)
+       var typeStr = type switch
         {
-            case NormalSettingsType.Perfect:
-                return JudgeDisplayPro.userSettings[player].PerfectDisplayMode switch
-                {
-                    NormalDisplayMode.JudgeOnly => "小P_仅显示判定",
-                    NormalDisplayMode.All => "小P_显示判定+FAST LATE",
-                    NormalDisplayMode.TimingOnly => "小P_仅显示FAST LATE",
-                    NormalDisplayMode.ColoredJudge => "小P_仅显示判定颜色",
-                    NormalDisplayMode.None => "小P_不显示",
-                    _ => null,
-                };
-            case NormalSettingsType.PerfectBreak:
-                return JudgeDisplayPro.userSettings[player].BreakPerfectDisplayMode switch
-                {
-                    NormalDisplayMode.JudgeOnly => "小P_仅显示判定",
-                    NormalDisplayMode.All => "小P_显示判定+FAST LATE",
-                    NormalDisplayMode.TimingOnly => "小P_仅显示FAST LATE",
-                    NormalDisplayMode.ColoredJudge => "小P_仅显示判定颜色",
-                    NormalDisplayMode.None => "小P_不显示",
-                    _ => null,
-                };
-            case NormalSettingsType.Great:
-                return JudgeDisplayPro.userSettings[player].GreatDisplayMode switch
-                {
-                    NormalDisplayMode.JudgeOnly => "GREAT_仅显示判定",
-                    NormalDisplayMode.All => "GREAT_显示判定+FAST LATE",
-                    NormalDisplayMode.TimingOnly => "GREAT_仅显示FAST LATE",
-                    NormalDisplayMode.ColoredJudge => "GREAT_仅显示判定颜色",
-                    NormalDisplayMode.None => "GREAT_不显示判定",
-                    _ => null,
-                };
-            case NormalSettingsType.Good:
-                return JudgeDisplayPro.userSettings[player].GoodDisplayMode switch
-                {
-                    NormalDisplayMode.JudgeOnly => "GOOD_仅显示判定",
-                    NormalDisplayMode.All => "GOOD_显示判定+FAST LATE",
-                    NormalDisplayMode.TimingOnly => "GOOD_仅显示FAST LATE",
-                    NormalDisplayMode.ColoredJudge => "GOOD_仅显示颜色判定",
-                    NormalDisplayMode.None => "GOOD_不显示判定",
-                    _ => null,
-                };
-        }
-        return null;
+            NormalSettingsType.Perfect or NormalSettingsType.PerfectBreak => "小P",
+            NormalSettingsType.Great => "GREAT",
+            NormalSettingsType.Good => "GOOD",
+            _ => null
+        };
+        var optionStr = GetOptionMode(player) switch
+        {
+            NormalDisplayMode.JudgeOnly => "仅显示判定",
+            NormalDisplayMode.All => "显示判定+FAST LATE",
+            NormalDisplayMode.TimingOnly => "仅显示FAST LATE",
+            NormalDisplayMode.ColoredJudge when typeStr == "GOOD" => "仅显示颜色判定",
+            NormalDisplayMode.ColoredJudge => "仅显示判定颜色",
+            NormalDisplayMode.None when typeStr == "小P" => "不显示",
+            NormalDisplayMode.None => "不显示判定",
+            _ => null
+        };
+
+        if (typeStr == null || optionStr == null) return null;
+        return $"{typeStr}_{optionStr}";
     }
 
     public void SubOption(int player)

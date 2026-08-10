@@ -13,7 +13,10 @@ using UnityEngine;
 
 namespace AquaMai.Mods.UX.JudgeDisplayPro;
 
-[ConfigSection]
+[ConfigSection(
+    name: "高级判定显示",
+    en: "Judge Display Pro",
+    zh: "自定义游戏内判定显示")]
 [ConfigCollapseNamespace]
 public partial class JudgeDisplayPro
 {
