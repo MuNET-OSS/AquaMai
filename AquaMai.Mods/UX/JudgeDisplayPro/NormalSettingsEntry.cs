@@ -103,7 +103,7 @@ public class NormalSettingsEntry(NormalSettingsType type) : SettingsEntryBase, I
 
     public override string GetSpriteSuffix(int player)
     {
-       var typeStr = type switch
+        var typeStr = type switch
         {
             NormalSettingsType.Perfect or NormalSettingsType.PerfectBreak => "小P",
             NormalSettingsType.Great => "GREAT",
