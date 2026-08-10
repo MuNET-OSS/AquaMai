@@ -82,10 +82,10 @@
     <EmbeddedResource Include="configSort.yaml">
       <LogicalName>configSort.yaml</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="level.ab">
+    <EmbeddedResource Include="Resources/level.ab">
       <LogicalName>level.ab</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="judgedisplaypro">
+    <EmbeddedResource Include="Resources/judgedisplaypro">
       <LogicalName>judgedisplaypro</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
