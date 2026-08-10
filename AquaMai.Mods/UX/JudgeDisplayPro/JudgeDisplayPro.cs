@@ -46,7 +46,9 @@ public partial class JudgeDisplayPro
         {
             using var stream = GetAssetBundleStream();
             if (stream == null) return;
-            var bundle = AssetBundle.LoadFromStream(stream);
+            using var memory = new MemoryStream();
+            stream.CopyTo(memory);
+            var bundle = AssetBundle.LoadFromMemory(memory.ToArray());
             if (bundle == null) return;
             GameSettingsManagerSprites.RegisterBundle("AQM_JudgeDisplayPro_", bundle);
         }
