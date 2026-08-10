@@ -31,117 +31,76 @@ public partial class JudgeDisplayPro
         var monitorIndex = binding.MonitorIndex;
         if ((uint)monitorIndex >= userSettings.Length) return;
         if (!userSettings[monitorIndex].IsEnable) return;
+        var settings = userSettings[monitorIndex];
         __instance.gameObject.SetActive(true);
         ___SpriteRenderAdd.gameObject.SetActive(false);
         switch (judge)
         {
             case NoteJudge.ETiming.FastGood:
-                switch (userSettings[monitorIndex].GoodDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideFastGood[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideFastGoodCol[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
+                ApplySlideDisplayMode(
+                    __instance,
+                    Logic.GetNormalDisplayMode(settings, judge, isBreak),
+                    GameNoteImageContainer.JudgeSlideFastGood[(int)____judgeType, (int)____angle],
+                    GameNoteImageContainer.JudgeSlideFastGoodCol[(int)____judgeType, (int)____angle],
+                    showTimingForAll: false,
+                    spriteRender: ___SpriteRender);
                 break;
             case NoteJudge.ETiming.LateGood:
-                switch (userSettings[monitorIndex].GoodDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideLateGood[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideLateGoodCol[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
+                ApplySlideDisplayMode(
+                    __instance,
+                    Logic.GetNormalDisplayMode(settings, judge, isBreak),
+                    GameNoteImageContainer.JudgeSlideLateGood[(int)____judgeType, (int)____angle],
+                    GameNoteImageContainer.JudgeSlideLateGoodCol[(int)____judgeType, (int)____angle],
+                    showTimingForAll: false,
+                    spriteRender: ___SpriteRender);
                 break;
             case NoteJudge.ETiming.FastGreat3rd:
             case NoteJudge.ETiming.FastGreat2nd:
             case NoteJudge.ETiming.FastGreat:
-                switch (userSettings[monitorIndex].GreatDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideFastGreat[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideFastGreatCol[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
+                ApplySlideDisplayMode(
+                    __instance,
+                    Logic.GetNormalDisplayMode(settings, judge, isBreak),
+                    GameNoteImageContainer.JudgeSlideFastGreat[(int)____judgeType, (int)____angle],
+                    GameNoteImageContainer.JudgeSlideFastGreatCol[(int)____judgeType, (int)____angle],
+                    showTimingForAll: false,
+                    spriteRender: ___SpriteRender);
                 break;
             case NoteJudge.ETiming.LateGreat3rd:
             case NoteJudge.ETiming.LateGreat2nd:
             case NoteJudge.ETiming.LateGreat:
-                switch (userSettings[monitorIndex].GreatDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideLateGreat[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideLateGreatCol[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
+                ApplySlideDisplayMode(
+                    __instance,
+                    Logic.GetNormalDisplayMode(settings, judge, isBreak),
+                    GameNoteImageContainer.JudgeSlideLateGreat[(int)____judgeType, (int)____angle],
+                    GameNoteImageContainer.JudgeSlideLateGreatCol[(int)____judgeType, (int)____angle],
+                    showTimingForAll: false,
+                    spriteRender: ___SpriteRender);
                 break;
             case NoteJudge.ETiming.FastPerfect2nd:
             case NoteJudge.ETiming.FastPerfect:
-                switch (userSettings[monitorIndex].GetPerfectDisplayMode(isBreak))
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.All:
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideFastPerfectCol[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
+                ApplySlideDisplayMode(
+                    __instance,
+                    Logic.GetNormalDisplayMode(settings, judge, isBreak),
+                    GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle],
+                    GameNoteImageContainer.JudgeSlideFastPerfectCol[(int)____judgeType, (int)____angle],
+                    showTimingForAll: true,
+                    spriteRender: ___SpriteRender);
                 break;
             case NoteJudge.ETiming.LatePerfect2nd:
             case NoteJudge.ETiming.LatePerfect:
-                switch (userSettings[monitorIndex].GetPerfectDisplayMode(isBreak))
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.All:
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeSlideLatePerfectCol[(int)____judgeType, (int)____angle];
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
+                ApplySlideDisplayMode(
+                    __instance,
+                    Logic.GetNormalDisplayMode(settings, judge, isBreak),
+                    GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle],
+                    GameNoteImageContainer.JudgeSlideLatePerfectCol[(int)____judgeType, (int)____angle],
+                    showTimingForAll: true,
+                    spriteRender: ___SpriteRender);
                 break;
             case NoteJudge.ETiming.Critical:
-                switch (GetCriticalDisplayAction(userSettings[monitorIndex].CriticalDisplayMode, isBreak))
+                switch (Logic.GetCriticalDisplayAction(settings.CriticalDisplayMode, isBreak))
                 {
                     case CriticalDisplayAction.AsPerfect:
-                        switch (userSettings[monitorIndex].GetPerfectDisplayMode(isBreak))
+                        switch (settings.GetPerfectDisplayMode(isBreak))
                         {
                             case NormalDisplayMode.JudgeOnly:
                             case NormalDisplayMode.All:
@@ -176,24 +135,30 @@ public partial class JudgeDisplayPro
         }
     }
 
-    private enum CriticalDisplayAction
+    private static void ApplySlideDisplayMode(
+        SlideJudge instance,
+        NormalDisplayMode mode,
+        Sprite judgeSprite,
+        Sprite timingSprite,
+        bool showTimingForAll,
+        SpriteRenderer spriteRender)
     {
-        AsPerfect,
-        Critical,
-        Hidden,
+        switch (mode)
+        {
+            case NormalDisplayMode.JudgeOnly:
+                spriteRender.sprite = judgeSprite;
+                break;
+            case NormalDisplayMode.All:
+                spriteRender.sprite = showTimingForAll ? timingSprite : judgeSprite;
+                break;
+            case NormalDisplayMode.TimingOnly:
+            case NormalDisplayMode.ColoredJudge:
+                spriteRender.sprite = timingSprite;
+                break;
+            case NormalDisplayMode.None:
+                instance.gameObject.SetActive(false);
+                break;
+        }
     }
 
-    private static CriticalDisplayAction GetCriticalDisplayAction(CriticalDisplayMode mode, bool isBreak)
-    {
-        return mode switch
-        {
-            CriticalDisplayMode.None => CriticalDisplayAction.AsPerfect,
-            CriticalDisplayMode.OnBreak => isBreak ? CriticalDisplayAction.Critical : CriticalDisplayAction.AsPerfect,
-            CriticalDisplayMode.OffBreak => isBreak ? CriticalDisplayAction.Hidden : CriticalDisplayAction.AsPerfect,
-            CriticalDisplayMode.OnAll => CriticalDisplayAction.Critical,
-            CriticalDisplayMode.OnAllShowBreak => isBreak ? CriticalDisplayAction.Critical : CriticalDisplayAction.Hidden,
-            CriticalDisplayMode.OffAll => CriticalDisplayAction.Hidden,
-            _ => CriticalDisplayAction.Hidden,
-        };
-    }
 }

@@ -47,192 +47,142 @@ public partial class JudgeDisplayPro
         }
         __instance.gameObject.SetActive(true);
         if (___SpriteRenderFastLate != null) ___SpriteRenderFastLate.gameObject.SetActive(false);
-        switch (judge)
+        var settings = userSettings[monitorIndex];
+        if (judge == NoteJudge.ETiming.Critical)
+        {
+            ApplyCriticalJudgeGradeDisplay(__instance, settings, false, ___SpriteRender, null);
+            return;
+        }
+
+        if (!TryGetNormalJudgeSprites(judge, out var judgeSprite, out var coloredSprite)) return;
+        ApplyNormalJudgeGradeDisplay(
+            __instance,
+            Logic.GetNormalDisplayMode(settings, judge, false),
+            Logic.IsFastTiming(judge),
+            judgeSprite,
+            coloredSprite,
+            ___SpriteRender,
+            ___SpriteRenderFastLate);
+    }
+
+    private static bool TryGetNormalJudgeSprites(NoteJudge.ETiming timing, out Sprite judgeSprite, out Sprite coloredSprite)
+    {
+        switch (timing)
         {
             case NoteJudge.ETiming.FastGood:
-                switch (userSettings[monitorIndex].GoodDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGood;
-                        break;
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGood;
-                        if (___SpriteRenderFastLate != null)
-                        {
-                            ___SpriteRenderFastLate.sprite = GameNoteImageContainer.JudgeFast;
-                            ___SpriteRenderFastLate.gameObject.SetActive(true);
-                        }
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeFast;
-                        break;
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeFastGood;
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
-                break;
+                judgeSprite = GameNoteImageContainer.JudgeGood;
+                coloredSprite = GameNoteImageContainer.JudgeFastGood;
+                return true;
             case NoteJudge.ETiming.LateGood:
-                switch (userSettings[monitorIndex].GoodDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGood;
-                        break;
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGood;
-                        if (___SpriteRenderFastLate != null)
-                        {
-                            ___SpriteRenderFastLate.sprite = GameNoteImageContainer.JudgeLate;
-                            ___SpriteRenderFastLate.gameObject.SetActive(true);
-                        }
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeLate;
-                        break;
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeLateGood;
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
-                break;
+                judgeSprite = GameNoteImageContainer.JudgeGood;
+                coloredSprite = GameNoteImageContainer.JudgeLateGood;
+                return true;
             case NoteJudge.ETiming.FastGreat3rd:
             case NoteJudge.ETiming.FastGreat2nd:
             case NoteJudge.ETiming.FastGreat:
-                switch (userSettings[monitorIndex].GreatDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGreat;
-                        break;
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGreat;
-                        if (___SpriteRenderFastLate != null)
-                        {
-                            ___SpriteRenderFastLate.sprite = GameNoteImageContainer.JudgeFast;
-                            ___SpriteRenderFastLate.gameObject.SetActive(true);
-                        }
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeFast;
-                        break;
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeFastGreat;
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
-                break;
+                judgeSprite = GameNoteImageContainer.JudgeGreat;
+                coloredSprite = GameNoteImageContainer.JudgeFastGreat;
+                return true;
             case NoteJudge.ETiming.LateGreat3rd:
             case NoteJudge.ETiming.LateGreat2nd:
             case NoteJudge.ETiming.LateGreat:
-                switch (userSettings[monitorIndex].GreatDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGreat;
-                        break;
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeGreat;
-                        if (___SpriteRenderFastLate != null)
-                        {
-                            ___SpriteRenderFastLate.sprite = GameNoteImageContainer.JudgeLate;
-                            ___SpriteRenderFastLate.gameObject.SetActive(true);
-                        }
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeLate;
-                        break;
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeLateGreat;
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
-                break;
+                judgeSprite = GameNoteImageContainer.JudgeGreat;
+                coloredSprite = GameNoteImageContainer.JudgeLateGreat;
+                return true;
             case NoteJudge.ETiming.FastPerfect2nd:
             case NoteJudge.ETiming.FastPerfect:
-                switch (userSettings[monitorIndex].PerfectDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                        break;
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                        if (___SpriteRenderFastLate != null)
-                        {
-                            ___SpriteRenderFastLate.sprite = GameNoteImageContainer.JudgeFast;
-                            ___SpriteRenderFastLate.gameObject.SetActive(true);
-                        }
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeFast;
-                        break;
-                    case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeFastPerfect;
-                        break;
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        break;
-                }
-                break;
+                judgeSprite = GameNoteImageContainer.JudgePerfect;
+                coloredSprite = GameNoteImageContainer.JudgeFastPerfect;
+                return true;
             case NoteJudge.ETiming.LatePerfect2nd:
             case NoteJudge.ETiming.LatePerfect:
-                switch (userSettings[monitorIndex].PerfectDisplayMode)
+                judgeSprite = GameNoteImageContainer.JudgePerfect;
+                coloredSprite = GameNoteImageContainer.JudgeLatePerfect;
+                return true;
+            default:
+                judgeSprite = null;
+                coloredSprite = null;
+                return false;
+        }
+    }
+
+    private static void ApplyNormalJudgeGradeDisplay(
+        JudgeGrade instance,
+        NormalDisplayMode mode,
+        bool isFast,
+        Sprite judgeSprite,
+        Sprite coloredSprite,
+        SpriteRenderer spriteRender,
+        SpriteRenderer spriteRenderFastLate,
+        SpriteRenderer spriteRenderAdd = null)
+    {
+        instance.gameObject.SetActive(true);
+        if (spriteRenderFastLate != null) spriteRenderFastLate.gameObject.SetActive(false);
+        if (spriteRenderAdd != null) spriteRenderAdd.gameObject.SetActive(false);
+
+        var timingSprite = isFast ? GameNoteImageContainer.JudgeFast : GameNoteImageContainer.JudgeLate;
+        switch (mode)
+        {
+            case NormalDisplayMode.JudgeOnly:
+                spriteRender.sprite = judgeSprite;
+                break;
+            case NormalDisplayMode.All:
+                spriteRender.sprite = judgeSprite;
+                if (spriteRenderFastLate != null)
+                {
+                    spriteRenderFastLate.sprite = timingSprite;
+                    spriteRenderFastLate.gameObject.SetActive(true);
+                }
+                break;
+            case NormalDisplayMode.TimingOnly:
+                spriteRender.sprite = timingSprite;
+                break;
+            case NormalDisplayMode.ColoredJudge:
+                spriteRender.sprite = coloredSprite;
+                break;
+            case NormalDisplayMode.None:
+                instance.gameObject.SetActive(false);
+                break;
+        }
+    }
+
+    private static void ApplyCriticalJudgeGradeDisplay(
+        JudgeGrade instance,
+        UserSettings settings,
+        bool isBreak,
+        SpriteRenderer spriteRender,
+        SpriteRenderer spriteRenderAdd)
+    {
+        switch (Logic.GetCriticalDisplayAction(settings.CriticalDisplayMode, isBreak))
+        {
+            case CriticalDisplayAction.AsPerfect:
+                switch (settings.GetPerfectDisplayMode(isBreak))
                 {
                     case NormalDisplayMode.JudgeOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                        break;
                     case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                        if (___SpriteRenderFastLate != null)
-                        {
-                            ___SpriteRenderFastLate.sprite = GameNoteImageContainer.JudgeLate;
-                            ___SpriteRenderFastLate.gameObject.SetActive(true);
-                        }
+                        spriteRender.sprite = GameNoteImageContainer.JudgePerfect;
+                        if (spriteRenderAdd != null) spriteRenderAdd.sprite = GameNoteImageContainer.JudgePerfectBreak;
                         break;
                     case NormalDisplayMode.TimingOnly:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeLate;
-                        break;
                     case NormalDisplayMode.ColoredJudge:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeLatePerfect;
-                        break;
                     case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
+                        instance.gameObject.SetActive(false);
+                        if (spriteRenderAdd != null) spriteRenderAdd.gameObject.SetActive(false);
                         break;
                 }
                 break;
-            case NoteJudge.ETiming.Critical:
-                // 这里处理的是绝赞以外的，绝赞的在下一个方法里面处理
-                switch (userSettings[monitorIndex].CriticalDisplayMode)
+            case CriticalDisplayAction.Critical:
+                spriteRender.sprite = GameNoteImageContainer.JudgeCritical;
+                if (spriteRenderAdd != null)
                 {
-                    case CriticalDisplayMode.None:
-                    case CriticalDisplayMode.OnBreak:
-                    case CriticalDisplayMode.OffBreak:
-                        switch (userSettings[monitorIndex].PerfectDisplayMode)
-                        {
-                            case NormalDisplayMode.JudgeOnly:
-                            case NormalDisplayMode.All:
-                                ___SpriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                                break;
-                            case NormalDisplayMode.TimingOnly:
-                            case NormalDisplayMode.ColoredJudge:
-                            case NormalDisplayMode.None:
-                                __instance.gameObject.SetActive(false);
-                                break;
-                        }
-                        break;
-                    case CriticalDisplayMode.OnAll:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgeCritical;
-                        break;
-                    case CriticalDisplayMode.OnAllShowBreak:
-                    case CriticalDisplayMode.OffAll:
-                        __instance.gameObject.SetActive(false);
-                        break;
+                    instance.gameObject.SetActive(true);
+                    spriteRenderAdd.sprite = GameNoteImageContainer.JudgeCriticalBreak;
+                    spriteRenderAdd.gameObject.SetActive(true);
                 }
+                break;
+            case CriticalDisplayAction.Hidden:
+                instance.gameObject.SetActive(false);
+                if (spriteRenderAdd != null) spriteRenderAdd.gameObject.SetActive(false);
                 break;
         }
     }
@@ -250,24 +200,29 @@ public partial class JudgeDisplayPro
             ___SpriteRenderAdd.gameObject.SetActive(false);
             return;
         }
+        var settings = userSettings[____monitorIndex];
         switch (judge)
         {
             case NoteJudge.ETiming.FastPerfect2nd:
             case NoteJudge.ETiming.FastPerfect:
-                ApplyBreakPerfectDisplayMode(
+                ApplyNormalJudgeGradeDisplay(
                     __instance,
-                    userSettings[____monitorIndex].BreakPerfectDisplayMode,
-                    true,
+                    Logic.GetNormalDisplayMode(settings, judge, true),
+                    Logic.IsFastTiming(judge),
+                    GameNoteImageContainer.JudgePerfect,
+                    GameNoteImageContainer.JudgeFastPerfect,
                     ___SpriteRender,
                     ___SpriteRenderFastLate,
                     ___SpriteRenderAdd);
                 return;
             case NoteJudge.ETiming.LatePerfect2nd:
             case NoteJudge.ETiming.LatePerfect:
-                ApplyBreakPerfectDisplayMode(
+                ApplyNormalJudgeGradeDisplay(
                     __instance,
-                    userSettings[____monitorIndex].BreakPerfectDisplayMode,
-                    false,
+                    Logic.GetNormalDisplayMode(settings, judge, true),
+                    Logic.IsFastTiming(judge),
+                    GameNoteImageContainer.JudgePerfect,
+                    GameNoteImageContainer.JudgeLatePerfect,
                     ___SpriteRender,
                     ___SpriteRenderFastLate,
                     ___SpriteRenderAdd);
@@ -277,81 +232,6 @@ public partial class JudgeDisplayPro
             default:
                 return;
         }
-        // 以下是大P的处理方式
-        switch (userSettings[____monitorIndex].CriticalDisplayMode)
-        {
-            case CriticalDisplayMode.None:
-                switch (userSettings[____monitorIndex].BreakPerfectDisplayMode)
-                {
-                    case NormalDisplayMode.JudgeOnly:
-                    case NormalDisplayMode.All:
-                        ___SpriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                        ___SpriteRenderAdd.sprite = GameNoteImageContainer.JudgePerfectBreak;
-                        break;
-                    case NormalDisplayMode.TimingOnly:
-                    case NormalDisplayMode.ColoredJudge:
-                    case NormalDisplayMode.None:
-                        __instance.gameObject.SetActive(false);
-                        ___SpriteRenderAdd.gameObject.SetActive(false);
-                        break;
-                }
-                break;
-            case CriticalDisplayMode.OnBreak:
-            case CriticalDisplayMode.OnAll:
-            case CriticalDisplayMode.OnAllShowBreak:
-                ___SpriteRender.sprite = GameNoteImageContainer.JudgeCritical;
-                ___SpriteRenderAdd.sprite = GameNoteImageContainer.JudgeCriticalBreak;
-                __instance.gameObject.SetActive(true);
-                ___SpriteRenderAdd.gameObject.SetActive(true);
-                break;
-            case CriticalDisplayMode.OffBreak:
-            case CriticalDisplayMode.OffAll:
-                __instance.gameObject.SetActive(false);
-                ___SpriteRenderAdd.gameObject.SetActive(false);
-                break;
-        }
-    }
-
-    private static void ApplyBreakPerfectDisplayMode(
-        JudgeGrade instance,
-        NormalDisplayMode mode,
-        bool isFast,
-        SpriteRenderer spriteRender,
-        SpriteRenderer spriteRenderFastLate,
-        SpriteRenderer spriteRenderAdd)
-    {
-        instance.gameObject.SetActive(true);
-        if (spriteRenderFastLate != null) spriteRenderFastLate.gameObject.SetActive(false);
-        spriteRenderAdd.gameObject.SetActive(false);
-
-        switch (mode)
-        {
-            case NormalDisplayMode.JudgeOnly:
-                spriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                break;
-            case NormalDisplayMode.All:
-                spriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                if (spriteRenderFastLate != null)
-                {
-                    spriteRenderFastLate.sprite = isFast
-                        ? GameNoteImageContainer.JudgeFast
-                        : GameNoteImageContainer.JudgeLate;
-                    spriteRenderFastLate.gameObject.SetActive(true);
-                }
-                break;
-            case NormalDisplayMode.TimingOnly:
-                spriteRender.sprite = isFast
-                    ? GameNoteImageContainer.JudgeFast
-                    : GameNoteImageContainer.JudgeLate;
-                break;
-            case NormalDisplayMode.ColoredJudge:
-                spriteRender.sprite = isFast
-                    ? GameNoteImageContainer.JudgeFastPerfect
-                    : GameNoteImageContainer.JudgeLatePerfect;
-                break;
-            case NormalDisplayMode.None:
-                instance.gameObject.SetActive(false);
-                break;
-        }
+        ApplyCriticalJudgeGradeDisplay(__instance, settings, true, ___SpriteRender, ___SpriteRenderAdd);
     }
 }

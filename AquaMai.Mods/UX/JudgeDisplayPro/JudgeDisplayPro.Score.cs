@@ -62,10 +62,8 @@ public partial class JudgeDisplayPro
             __state.WasJudged = note.isJudged;
             isBreak = note.type.isBreak() || note.type.isExBreak();
         }
-        __state.ShouldCount = ShouldCountFastLate(settings, timing, isBreak);
-        __state.IsFast = timing is NoteJudge.ETiming.FastGood or
-            NoteJudge.ETiming.FastGreat3rd or NoteJudge.ETiming.FastGreat2nd or NoteJudge.ETiming.FastGreat or
-            NoteJudge.ETiming.FastPerfect2nd or NoteJudge.ETiming.FastPerfect;
+        __state.ShouldCount = Logic.ShouldCountFastLate(settings, timing, isBreak);
+        __state.IsFast = Logic.IsFastTiming(timing);
     }
 
     [HarmonyPostfix]
@@ -117,18 +115,4 @@ public partial class JudgeDisplayPro
         };
     }
 
-    private static bool ShouldCountFastLate(UserSettings settings, NoteJudge.ETiming timing, bool isBreak)
-    {
-        var mode = timing switch
-        {
-            NoteJudge.ETiming.FastGood or NoteJudge.ETiming.LateGood => settings.GoodDisplayMode,
-            NoteJudge.ETiming.FastGreat3rd or NoteJudge.ETiming.FastGreat2nd or NoteJudge.ETiming.FastGreat or
-                NoteJudge.ETiming.LateGreat3rd or NoteJudge.ETiming.LateGreat2nd or NoteJudge.ETiming.LateGreat => settings.GreatDisplayMode,
-            NoteJudge.ETiming.FastPerfect2nd or NoteJudge.ETiming.FastPerfect or
-                NoteJudge.ETiming.LatePerfect2nd or NoteJudge.ETiming.LatePerfect => settings.GetPerfectDisplayMode(isBreak),
-            _ => NormalDisplayMode.None,
-        };
-
-        return mode is NormalDisplayMode.All or NormalDisplayMode.TimingOnly or NormalDisplayMode.ColoredJudge;
-    }
 }
