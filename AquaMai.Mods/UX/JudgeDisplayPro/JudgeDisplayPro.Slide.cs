@@ -42,8 +42,7 @@ public partial class JudgeDisplayPro
                     Logic.GetNormalDisplayMode(settings, judge, isBreak),
                     GameNoteImageContainer.JudgeSlideFastGood[(int)____judgeType, (int)____angle],
                     GameNoteImageContainer.JudgeSlideFastGoodCol[(int)____judgeType, (int)____angle],
-                    showTimingForAll: false,
-                    spriteRender: ___SpriteRender);
+                    ___SpriteRender);
                 break;
             case NoteJudge.ETiming.LateGood:
                 ApplySlideDisplayMode(
@@ -51,8 +50,7 @@ public partial class JudgeDisplayPro
                     Logic.GetNormalDisplayMode(settings, judge, isBreak),
                     GameNoteImageContainer.JudgeSlideLateGood[(int)____judgeType, (int)____angle],
                     GameNoteImageContainer.JudgeSlideLateGoodCol[(int)____judgeType, (int)____angle],
-                    showTimingForAll: false,
-                    spriteRender: ___SpriteRender);
+                    ___SpriteRender);
                 break;
             case NoteJudge.ETiming.FastGreat3rd:
             case NoteJudge.ETiming.FastGreat2nd:
@@ -62,8 +60,7 @@ public partial class JudgeDisplayPro
                     Logic.GetNormalDisplayMode(settings, judge, isBreak),
                     GameNoteImageContainer.JudgeSlideFastGreat[(int)____judgeType, (int)____angle],
                     GameNoteImageContainer.JudgeSlideFastGreatCol[(int)____judgeType, (int)____angle],
-                    showTimingForAll: false,
-                    spriteRender: ___SpriteRender);
+                    ___SpriteRender);
                 break;
             case NoteJudge.ETiming.LateGreat3rd:
             case NoteJudge.ETiming.LateGreat2nd:
@@ -73,8 +70,7 @@ public partial class JudgeDisplayPro
                     Logic.GetNormalDisplayMode(settings, judge, isBreak),
                     GameNoteImageContainer.JudgeSlideLateGreat[(int)____judgeType, (int)____angle],
                     GameNoteImageContainer.JudgeSlideLateGreatCol[(int)____judgeType, (int)____angle],
-                    showTimingForAll: false,
-                    spriteRender: ___SpriteRender);
+                    ___SpriteRender);
                 break;
             case NoteJudge.ETiming.FastPerfect2nd:
             case NoteJudge.ETiming.FastPerfect:
@@ -83,8 +79,8 @@ public partial class JudgeDisplayPro
                     Logic.GetNormalDisplayMode(settings, judge, isBreak),
                     GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle],
                     GameNoteImageContainer.JudgeSlideFastPerfectCol[(int)____judgeType, (int)____angle],
-                    showTimingForAll: true,
-                    spriteRender: ___SpriteRender);
+                    ___SpriteRender, 
+                    showTimingForAll: true);
                 break;
             case NoteJudge.ETiming.LatePerfect2nd:
             case NoteJudge.ETiming.LatePerfect:
@@ -93,8 +89,8 @@ public partial class JudgeDisplayPro
                     Logic.GetNormalDisplayMode(settings, judge, isBreak),
                     GameNoteImageContainer.JudgeSlidePerfect[(int)____judgeType, (int)____angle],
                     GameNoteImageContainer.JudgeSlideLatePerfectCol[(int)____judgeType, (int)____angle],
-                    showTimingForAll: true,
-                    spriteRender: ___SpriteRender);
+                    ___SpriteRender, 
+                    showTimingForAll: true);
                 break;
             case NoteJudge.ETiming.Critical:
                 switch (Logic.GetCriticalDisplayAction(settings.CriticalDisplayMode, isBreak))
@@ -135,13 +131,13 @@ public partial class JudgeDisplayPro
         }
     }
 
-    private static void ApplySlideDisplayMode(
-        SlideJudge instance,
+    private static void ApplySlideDisplayMode(SlideJudge instance,
         NormalDisplayMode mode,
         Sprite judgeSprite,
         Sprite timingSprite,
-        bool showTimingForAll,
-        SpriteRenderer spriteRender)
+        SpriteRenderer spriteRender,
+        bool showTimingForAll = false // 如果为true，则 NormalDisplayMode.All 也显示蓝红的 timingSprite 而不是黄粉绿的 judgeSprite 。 这大概对应着某种“小P星星”的更好的处理，但现阶段这个游戏根本没有小P星星，所以并不重要。
+        )
     {
         switch (mode)
         {

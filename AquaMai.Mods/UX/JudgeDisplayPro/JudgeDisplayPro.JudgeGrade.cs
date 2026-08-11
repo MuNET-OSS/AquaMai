@@ -49,12 +49,13 @@ public partial class JudgeDisplayPro
         if (___SpriteRenderFastLate != null) ___SpriteRenderFastLate.gameObject.SetActive(false);
         var settings = userSettings[monitorIndex];
         if (judge == NoteJudge.ETiming.Critical)
-        {
+        { // 大P是不分fast和late的，因此与其他类型判定有较大区别，故单独分一个函数处理
             ApplyCriticalJudgeGradeDisplay(__instance, settings, false, ___SpriteRender, null);
             return;
         }
 
         if (!TryGetNormalJudgeSprites(judge, out var judgeSprite, out var coloredSprite)) return;
+        // 上面这个函数对 MISS 和 大P 会返回false，所以下面的不执行，自然就不触发我们的Mod
         ApplyNormalJudgeGradeDisplay(
             __instance,
             Logic.GetNormalDisplayMode(settings, judge, false),
@@ -161,7 +162,7 @@ public partial class JudgeDisplayPro
                     case NormalDisplayMode.JudgeOnly:
                     case NormalDisplayMode.All:
                         spriteRender.sprite = GameNoteImageContainer.JudgePerfect;
-                        if (spriteRenderAdd != null) spriteRenderAdd.sprite = GameNoteImageContainer.JudgePerfectBreak;
+                        if (isBreak && spriteRenderAdd != null) spriteRenderAdd.sprite = GameNoteImageContainer.JudgePerfectBreak;
                         break;
                     case NormalDisplayMode.TimingOnly:
                     case NormalDisplayMode.ColoredJudge:
@@ -173,7 +174,7 @@ public partial class JudgeDisplayPro
                 break;
             case CriticalDisplayAction.Critical:
                 spriteRender.sprite = GameNoteImageContainer.JudgeCritical;
-                if (spriteRenderAdd != null)
+                if (isBreak && spriteRenderAdd != null)
                 {
                     instance.gameObject.SetActive(true);
                     spriteRenderAdd.sprite = GameNoteImageContainer.JudgeCriticalBreak;
@@ -203,6 +204,11 @@ public partial class JudgeDisplayPro
         var settings = userSettings[____monitorIndex];
         switch (judge)
         {
+            // 尽管JudgeGrade.InitializeBreak里已经会调用JudgeGrade.Initialize了，
+            // 但是，（受到游戏原始代码所限、缺乏一个机制稳定地在Initialize中获知当前Note是不是绝赞），PostJudgeGradeInitialize中是假定音符一定是非绝赞来处理的。
+            // 那么，如果用户的普通音符小P和绝赞音符小P配置不一致，PostJudgeGradeInitialize中ApplyNormalJudgeGradeDisplay所处理出的内容就会是错的。
+            // 因此，我们在这里必须对小P的情况，重新调用ApplyNormalJudgeGradeDisplay(isBreak: true)处理一次，才能保证行为是对的。
+            // Great和Good的情况不需要考虑，本质是我们并没有给用户提供“绝赞Great”的单独配置项，因此绝赞Great和非绝赞Great的行为是相同的，这部分在PostJudgeGradeInitialize中已经处理过了。
             case NoteJudge.ETiming.FastPerfect2nd:
             case NoteJudge.ETiming.FastPerfect:
                 ApplyNormalJudgeGradeDisplay(
@@ -228,10 +234,10 @@ public partial class JudgeDisplayPro
                     ___SpriteRenderAdd);
                 return;
             case NoteJudge.ETiming.Critical:
-                break;
+                ApplyCriticalJudgeGradeDisplay(__instance, settings, true, ___SpriteRender, ___SpriteRenderAdd);
+                return;
             default:
                 return;
         }
-        ApplyCriticalJudgeGradeDisplay(__instance, settings, true, ___SpriteRender, ___SpriteRenderAdd);
     }
 }
