@@ -70,6 +70,7 @@
   - UX.OneKeyEntryEnd
   - UX.OneKeyRetrySkip
   - Utils.EarlyContinue
+  - UX.RemoveCharacterCopyrightRestriction
 
 选曲界面:
   - UX.HideSelfMadeCharts
