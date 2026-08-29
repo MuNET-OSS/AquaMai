@@ -15,23 +15,40 @@ using UnityEngine.Video;
 namespace AquaMai.Mods.Fancy;
 
 [ConfigSection(
-    "标题画面视频",
-    en: "Plays custom video on title screen, just like in the good ol' days",
-    zh: "复刻 bud 代之前的标题界面视频动画")]
+    "标题画面调整",
+    en: "Plays custom BGM and/or video on the title screen, and other tweaks",
+    zh: "允许标题画面播放自定义 BGM 和视频，以及其它微调")]
 [EnableGameVersion(24000)]
-public class TitleScreenVideo
+public class TitleScreenTweak
 {
     [ConfigEntry(
-        en: "Title Video / Audio File Path (without file extensions, mp4 video and acb/awb audio are supported)",
-        zh: "标题视音频文件路径，不包括文件后缀名（视频为 mp4 格式，音频为 acb/awb 格式）")]
-    public static readonly string VideoPath = "LocalAssets/DX_title";
+        name: "启用自定义 BGM")]
+    public static readonly bool EnableCustomBGM = true;
 
     [ConfigEntry(
-        en: "Skip the SEGA / All.Net logo when custom title video file is loaded",
-        zh: "自定标题视频成功加载后，跳过 SEGA / All.Net 标志动画")]
+        name: "自定义 BGM 路径",
+        en: "Custom BGM file path, without file extensions, acb/awb audio supported",
+        zh: "自定义标题 BGM 文件路径，路径不包括文件后缀名，音频文件格式须为 acb/awb")]
+    public static readonly string CustomBGMPath = "LocalAssets/DX_title";
+
+    [ConfigEntry(
+        name: "启用自定义视频")]
+    public static readonly bool EnableCustomVideo = false;
+
+    [ConfigEntry(
+        name: "自定义视频路径",
+        en: "Custom video file path, with file extension, mp4 video supported",
+        zh: "自定义标题视频文件路径，路径包括文件后缀名，视频文件格式须为 mp4")]
+    public static readonly string CustomVideoPath = "LocalAssets/DX_title.mp4";
+
+    [ConfigEntry(
+        name: "跳过 Logo 画面",
+        en: "Skip the SEGA / All.Net logo",
+        zh: "跳过 SEGA / All.Net 标志动画")]
     public static readonly bool SkipLogo = false;
 
     [ConfigEntry(
+        name: "隐藏版权信息",
         en: "Hide copyright information on the bottom of the title screen",
         zh: "隐藏标题画面底部的版权信息")]
     public static readonly bool HideCopyright = false;
@@ -45,14 +62,12 @@ public class TitleScreenVideo
     private static int _videoPreparedCount = 0;
     private static bool IsVideoPrepared => _videoPreparedCount >= 2;
 
-    private static bool _isAudioPrepared = false;
+    private static bool _audioPrepared = false;
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(AdvertiseProcess), "OnStart")]
     public static void OnStart_Postfix(AdvertiseMonitor[] ____monitors)
     {
-        var moviePref = Resources.Load<GameObject>("Process/AdvertiseCommercial/AdvertiseCommercialProcess").transform.Find("Canvas/Main/MovieMask").gameObject;
-
         for (int i = 0; i < ____monitors.Length; ++i)
         {
             var monitor = ____monitors[i];
@@ -64,86 +79,100 @@ public class TitleScreenVideo
             // Hide copyright information
             if (HideCopyright)
                 monitor.transform.Find("Canvas/Main/UI_ADV_Title/Null_all/Licence").gameObject.SetActive(false);
-
-            var titleLoop = monitor.transform.Find("Canvas/Main/UI_ADV_Title/Null_all/TitleLoop");
-
-            // Disable all elements on the original title screen
-            for (int j = 0; j < titleLoop.childCount; ++j)
-            {
-                var obj = titleLoop.GetChild(j).gameObject;
-                if (obj.activeSelf)
-                {
-                    obj.SetActive(false);
-                    _disabledCompoments[i].Add(obj.name);
-                }
-            }
-
-            _movieObjects[i] = UnityEngine.Object.Instantiate(moviePref, titleLoop);
-            _movieObjects[i].GetComponent<SpriteRenderer>().color = new Color(0, 0, 0, 0);
-
-            _videoPlayers[i] = _movieObjects[i].AddComponent<VideoPlayer>();
-            _videoPlayers[i].url = FileSystem.ResolvePath(VideoPath + ".mp4");
-            _videoPlayers[i].playOnAwake = false;
-            _videoPlayers[i].isLooping = false;
-            _videoPlayers[i].renderMode = VideoRenderMode.MaterialOverride;
-            _videoPlayers[i].audioOutputMode = VideoAudioOutputMode.None;
-
-            var movieSprite = _movieObjects[i].transform.Find("Movie").gameObject.GetComponent<SpriteRenderer>();
-
-            _videoPlayers[i].prepareCompleted += (source) =>
-            {
-                // Prevent autoplay
-                source.Pause();
-                source.time = 0;
-
-                // Setting the video player size
-                var vWidth = source.width;
-                var vHeight = source.height;
-
-                var calWidth = vHeight > vWidth ? (1080 * vWidth / vHeight) : 1080;
-                var calHeight = vHeight > vWidth ? 1080 : (1080 * vHeight / vWidth);
-
-                movieSprite.size = new Vector2(calWidth, calHeight);
-
-                Interlocked.Increment(ref _videoPreparedCount);
-            };
-
-            _videoPlayers[i].errorReceived += (source, err) =>
-            {
-                MelonLogger.Error($"[TitleScreenVideo] Failed to load video file: {err}");
-            };
-
-            _videoPlayers[i].Prepare();
-
-            _videoMaterials[i] = new Material(Shader.Find("Sprites/Default"));
-            movieSprite.material = _videoMaterials[i];
-            _videoPlayers[i].targetMaterialRenderer = movieSprite;
         }
 
-        _isAudioPrepared = SoundManager.MusicPrepareForFileName(VideoPath);
-        if (!_isAudioPrepared)
-            MelonLogger.Warning("[TitleScreenVideo] Failed to load audio file, game's default title jingle will be played instead");
+        if (EnableCustomBGM)
+        {
+            _audioPrepared = SoundManager.MusicPrepareForFileName(CustomBGMPath);
+            if (!_audioPrepared)
+                MelonLogger.Warning("[TitleScreenTweak] Failed to load audio file, game's default title jingle will be played instead");
+        }
+
+        if (EnableCustomVideo)
+        {
+            var moviePref = Resources.Load<GameObject>("Process/AdvertiseCommercial/AdvertiseCommercialProcess").transform.Find("Canvas/Main/MovieMask").gameObject;
+
+            for (int i = 0; i < ____monitors.Length; ++i)
+            {
+                var monitor = ____monitors[i];
+
+                var titleLoop = monitor.transform.Find("Canvas/Main/UI_ADV_Title/Null_all/TitleLoop");
+
+                // Disable all elements on the original title screen
+                for (int j = 0; j < titleLoop.childCount; ++j)
+                {
+                    var obj = titleLoop.GetChild(j).gameObject;
+                    if (obj.activeSelf)
+                    {
+                        obj.SetActive(false);
+                        _disabledCompoments[i].Add(obj.name);
+                    }
+                }
+
+                _movieObjects[i] = UnityEngine.Object.Instantiate(moviePref, titleLoop);
+                _movieObjects[i].GetComponent<SpriteRenderer>().color = new Color(0, 0, 0, 0);
+
+                _videoPlayers[i] = _movieObjects[i].AddComponent<VideoPlayer>();
+                _videoPlayers[i].url = FileSystem.ResolvePath(CustomVideoPath);
+                _videoPlayers[i].playOnAwake = false;
+                _videoPlayers[i].isLooping = false;
+                _videoPlayers[i].renderMode = VideoRenderMode.MaterialOverride;
+                _videoPlayers[i].audioOutputMode = VideoAudioOutputMode.None;
+
+                var movieSprite = _movieObjects[i].transform.Find("Movie").gameObject.GetComponent<SpriteRenderer>();
+
+                _videoPlayers[i].prepareCompleted += (source) =>
+                {
+                    // Prevent autoplay
+                    source.Pause();
+                    source.time = 0;
+
+                    // Setting the video player size
+                    var vWidth = source.width;
+                    var vHeight = source.height;
+
+                    var calWidth = vHeight > vWidth ? (1080 * vWidth / vHeight) : 1080;
+                    var calHeight = vHeight > vWidth ? 1080 : (1080 * vHeight / vWidth);
+
+                    movieSprite.size = new Vector2(calWidth, calHeight);
+
+                    Interlocked.Increment(ref _videoPreparedCount);
+                };
+
+                _videoPlayers[i].errorReceived += (source, err) =>
+                {
+                    MelonLogger.Error($"[TitleScreenTweak] Failed to load video file: {err}");
+                };
+
+                _videoPlayers[i].Prepare();
+
+                _videoMaterials[i] = new Material(Shader.Find("Sprites/Default"));
+                movieSprite.material = _videoMaterials[i];
+                _videoPlayers[i].targetMaterialRenderer = movieSprite;
+            }
+        }
     }
 
     [HarmonyPostfix]
     [HarmonyPatch(typeof(AdvertiseProcess), "OnUpdate")]
     public static void OnUpdate_Postfix(AdvertiseProcess.AdvertiseSequence ____state, AdvertiseMonitor[] ____monitors)
     {
-        if (____state == AdvertiseProcess.AdvertiseSequence.TransitionOut && IsVideoPrepared)
+        if (____state == AdvertiseProcess.AdvertiseSequence.TransitionOut)
         {
             for (int i = 0; i < ____monitors.Length; ++i)
             {
-                // Stop yelling "maimai deluxe" I'm tired to hearing it
-                SoundManager.StopVoice(i);
-
-                _videoPlayers[i].Play();
-
-                if (_isAudioPrepared)
+                if (_audioPrepared)
                 {
                     // Stop game's original title music and plays our own
                     SoundManager.StopJingle(i);
                     SoundManager.StartMusic();
+
+                    // Stops the "maimai DX" voice, turns out it'll conflicts with the custom BGM feature
+                    SoundManager.StopVoice(i);
                 }
+
+                if (IsVideoPrepared)
+                    _videoPlayers[i].Play();
             }
         }
     }
@@ -152,7 +181,7 @@ public class TitleScreenVideo
     [HarmonyPatch(typeof(AdvertiseProcess), "LeaveAdvertise")]
     public static void LeaveAdvertise_Postfix()
     {
-        if (_isAudioPrepared)
+        if (_audioPrepared)
         {
             // Stop and unloads title music
             SoundManager.StopMusic();
@@ -187,7 +216,7 @@ public class TitleScreenVideo
 
         // Resets status
         Interlocked.Exchange(ref _videoPreparedCount, 0);
-        _isAudioPrepared = false;
+        _audioPrepared = false;
         _disabledCompoments = [[], []];
     }
 
@@ -204,18 +233,24 @@ public class TitleScreenVideo
     [HarmonyPatch(typeof(AdvertiseMonitor), "IsTitleAnimationEnd")]
     public static bool Monitor_IsTitleAnimationEnd_Prefix(ref bool __result, int ___monitorIndex)
     {
-        if (!IsVideoPrepared)
-            return true;
+        if (IsVideoPrepared)
+        {
+            __result = !_videoPlayers[___monitorIndex].isPlaying && _videoPlayers[___monitorIndex].frame >= (long)_videoPlayers[___monitorIndex].frameCount - 1;
+            return false;
+        }
+        else if (_audioPrepared)
+        {
+            __result = SoundManager.IsEndMusic();
+        }
 
-        __result = !_videoPlayers[___monitorIndex].isPlaying && _videoPlayers[___monitorIndex].frame >= (long) _videoPlayers[___monitorIndex].frameCount - 1;
-        return false;
+        return true;
     }
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(AdvertiseMonitor), "PlayLogo")]
     public static bool Monitor_PlayLogo_Prefix(int ___monitorIndex, GameObject ____eventModeObject, CanvasGroup ___Main)
     {
-        if (!IsVideoPrepared)
+        if (EnableCustomVideo && !IsVideoPrepared)
         {
             // Re-enable original title screen elements if the video is unavailable
             // doing this early so the transition will be less noticable
@@ -226,8 +261,6 @@ public class TitleScreenVideo
                 titleLoop.Find(name).gameObject.SetActive(true);
 
             _disabledCompoments[___monitorIndex] = [];
-
-            return true;
         }
 
         if (!SkipLogo)
@@ -242,7 +275,7 @@ public class TitleScreenVideo
     [HarmonyPatch(typeof(AdvertiseMonitor), "IsLogoAnimationEnd")]
     public static bool Monitor_IsLogoAnimationEnd_Prefix(ref bool __result)
     {
-        if (!IsVideoPrepared || !SkipLogo)
+        if (!SkipLogo)
             return true;
 
         __result = true;
