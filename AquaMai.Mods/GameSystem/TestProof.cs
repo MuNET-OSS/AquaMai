@@ -88,15 +88,4 @@ public class TestProof
 
         return false;
     }
-
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(GameMain), "Update")]
-    public static void Workaround() { }
-    /*
-     * 似乎是 0Harmony.dll 的 Bug，导致在 Maimoller 的 Mod Patch GameMain:Update 之后，
-     * 原本 GameMain:Update 调用的 InputManager:GetSystemInputDown 变回了未 Patch 过的原始版本
-     * 我觉得这是玄学 Bug，应该用玄学方法来修
-     * 尝试性放了一个这个在这里，诶，好了！
-     * 我觉得应该是有某种 Patch 顺序相关的问题
-     */
 }
