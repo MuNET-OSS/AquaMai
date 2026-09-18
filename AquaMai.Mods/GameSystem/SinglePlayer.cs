@@ -173,10 +173,14 @@ public partial class SinglePlayer
     }
 
     [EnableGameVersion(27000)]
-    [HarmonyPatch("SubBGController", "SetScreenClipsX")]
+    [HarmonyPatch("ScreenClipSetter", "SetClipX")]
     [HarmonyPrefix]
-    public static bool BGControllerSetScreenClipsX()
+    public static void ScreenClipSetterSetClipX(ref float minX, ref float maxX)
     {
-        return false;
+        if (maxX <= 0.5f)
+        {
+            minX = 0f;
+            maxX = 1f;
+        }
     }
 }
