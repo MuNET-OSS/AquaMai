@@ -104,7 +104,8 @@ public class TrackCamouflage
 
             // 根据当前正在处理的歌曲的ID，从allJacketFiles中筛选出匹配的jacket
             var jacketFiles = allJacketFiles.Where(
-                s => int.TryParse(s.Split('_')[0], out var res) && res == musicID && 
+                s => int.TryParse(Path.GetFileNameWithoutExtension(s).Split('_')[0], out var res) && 
+                     res == musicID && 
                      AllowedImageExts.Contains(Path.GetExtension(s).ToLowerInvariant())).ToList();
             
             if (jacketFiles.Count == 0)
