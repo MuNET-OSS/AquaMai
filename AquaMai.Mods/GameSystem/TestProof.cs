@@ -5,6 +5,7 @@ using AquaMai.Core;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using AquaMai.Mods.Tweaks;
+using AquaMai.Mods.Utils;
 using AquaMai.Mods.UX;
 using AquaMai.Mods.UX.PracticeMode;
 using HarmonyLib;
@@ -38,6 +39,7 @@ public class TestProof
                 (typeof(HideSelfMadeCharts), HideSelfMadeCharts.key),
                 (typeof(PracticeMode), PracticeMode.key),
                 (typeof(ResetTouch), ResetTouch.key),
+                (typeof(FreedomTimer), FreedomTimer.addTimeKey),
             ];
             var keyMapEnabled = ConfigLoader.Config.GetSectionState(typeof(KeyMap)).Enabled;
             return featureKeys.Any(it =>
