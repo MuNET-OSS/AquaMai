@@ -172,7 +172,7 @@ public partial class SinglePlayer
         ____time10.SetVisible(false);
     }
 
-    [EnableGameVersion(27000)]
+    [EnableGameVersion(27000, noWarn: true)]
     [HarmonyPatch("ScreenClipSetter", "SetClipX")]
     [HarmonyPrefix]
     public static void ScreenClipSetterSetClipX(ref float minX, ref float maxX)

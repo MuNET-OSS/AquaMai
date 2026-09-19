@@ -73,7 +73,7 @@ public class CreditConfig
     }
 
     [EnableIf(nameof(allowTicketInFreePlay))]
-    [EnableGameVersion(27000)]
+    [EnableGameVersion(27000, noWarn: true)]
     [HarmonyPrefix]
     [HarmonyPatch("Manager.MagicalPassManager", "GetNeedCredit")]
     public static bool GetNeedCredit(ref int needCredit, ref int needCreditNumerator, ref int needCreditDenominator)
