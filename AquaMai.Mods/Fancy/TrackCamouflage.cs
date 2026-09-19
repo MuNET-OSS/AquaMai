@@ -17,10 +17,11 @@ using System.Reflection;
 using System.Reflection.Emit;
 using AquaMai.Core.Attributes;
 using Tomlet;
+using Tomlet.Exceptions;
+using Tomlet.Models;
 using UI.DaisyChainList;
 using UnityEngine;
 using UnityEngine.UI;
-using Tomlet.Models;
 using Manager.MaiStudio;
 
 namespace AquaMai.Mods.Fancy;
@@ -41,7 +42,7 @@ public class TrackCamouflage
     - Or set HideNoteDesigner = true to hide it and show ""-"" like Basic/Advanced charts
   - UnlockScore: minimum achievement % to remove camouflage, e.g. 97.0
     - Optional, default 0 — any existing score removes camouflage; set to 102 to keep camouflage forever
-- Camouflage jacket filename is <Music ID>_jacket.jpg/png. Only jpg/png are supported (not .ab), and the ""Load Image Directly (直读图片)"" feature must also be enabled.",
+- Camouflage jacket filename is <Music ID>_jacket.jpg/png. Only jpg/png are supported (not .ab).",
         zh: @"曲目伪装信息和封面文件夹的路径
 - 曲目伪装信息的文件名为 <曲目ID>.toml，TOML 文档可填入的字段包括：
   - Name: 伪装后的曲目名
@@ -50,7 +51,7 @@ public class TrackCamouflage
     - 或者：亦可用 HideNoteDesigner = true 来隐藏谱师、显示为和绿黄谱一样的 ""-""
   - UnlockScore：解除伪装所需要的最低达成率，例如 97.0
     - 可选，默认为0，即只要玩家打过一次、有过成绩，就不再伪装；而通过指定为102的方式，则可以实现永远伪装
-- 伪装封面的文件名为 <曲目ID>_jacket.jpg/png。目前仅支持jpg、png这两种格式，不支持ab，且必须同时开启“直读图片”功能才能使用。")]
+- 伪装封面的文件名为 <曲目ID>_jacket.jpg/png。目前仅支持jpg、png这两种格式，不支持ab。")]
     public static readonly string CamouflageDir = "LocalAssets/Camouflages";
 
     [ConfigEntry(
@@ -476,7 +477,15 @@ public class TrackCamouflage
             if (!_source.ContainsKey(key))
                 return 0.0f;
 
-            return _source.GetFloat(key);
+            try
+            {
+                return _source.GetFloat(key);
+            }
+            catch (TomlTypeMismatchException)
+            {
+                // TOML bare numbers like 97 / 102 are integers (TomlLong); GetFloat only accepts floats.
+                return _source.GetInteger(key);
+            }
         }
 
         private bool LoadBoolean(string key)
