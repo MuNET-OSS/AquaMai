@@ -17,10 +17,11 @@ using System.Reflection;
 using System.Reflection.Emit;
 using AquaMai.Core.Attributes;
 using Tomlet;
+using Tomlet.Exceptions;
+using Tomlet.Models;
 using UI.DaisyChainList;
 using UnityEngine;
 using UnityEngine.UI;
-using Tomlet.Models;
 using Manager.MaiStudio;
 
 namespace AquaMai.Mods.Fancy;
@@ -34,16 +35,28 @@ public class TrackCamouflage
 {
     [ConfigEntry(
         en: @"Track camouflage info and jacket file directory
-Camouflage information filename is ""<Music ID>.toml"", the toml document contains the disguised track name (Name) and artist name (Artist)
-Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are supported",
+- Camouflage info filename is <Music ID>.toml. TOML fields:
+  - Name: disguised track name
+  - Artist: disguised artist
+  - NoteDesigner: disguised note designer (optional; if omitted, the real note designer is shown)
+    - Or set HideNoteDesigner = true to hide it and show ""-"" like Basic/Advanced charts
+  - UnlockScore: minimum achievement % to remove camouflage, e.g. 97.0
+    - Optional, default 0 — any existing score removes camouflage; set to 102 to keep camouflage forever
+- Camouflage jacket filename is <Music ID>_jacket.jpg/png. Only jpg/png are supported (not .ab).",
         zh: @"曲目伪装信息和封面文件夹的路径
-曲目伪装信息的文件名为 <曲目ID>.toml，TOML 文档可填入伪装后的曲目名（Name）和曲师（Artist）
-伪装封面的文件名为 <曲目ID>_jacket，支持 jpg 和 png 格式")]
+- 曲目伪装信息的文件名为 <曲目ID>.toml，TOML 文档可填入的字段包括：
+  - Name: 伪装后的曲目名
+  - Artist: 伪装后的曲师
+  - NoteDesigner：伪装后的谱师（可选，如不指定则默认不伪装，显示原本的谱师）
+    - 或者：亦可用 HideNoteDesigner = true 来隐藏谱师、显示为和绿黄谱一样的 ""-""
+  - UnlockScore：解除伪装所需要的最低达成率，例如 97.0
+    - 可选，默认为0，即只要玩家打过一次、有过成绩，就不再伪装；而通过指定为102的方式，则可以实现永远伪装
+- 伪装封面的文件名为 <曲目ID>_jacket.jpg/png。目前仅支持jpg、png这两种格式，不支持ab。")]
     public static readonly string CamouflageDir = "LocalAssets/Camouflages";
 
     [ConfigEntry(
-        en: "Always enable track camouflage, no matter if player already played the track or not",
-        zh: "无视玩家游玩记录检测，始终显示伪装后的曲目信息")]
+        en: "Always enable track camouflage, ignoring UnlockScore / play record checks",
+        zh: "无视 UnlockScore / 游玩记录检测，始终显示伪装后的曲目信息")]
     public static readonly bool AlwaysShowCamouflage = false;
 
     private static readonly string[] AllowedImageExts = [".jpg", ".jpeg", ".png"];
@@ -65,6 +78,7 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         }
 
         var camouflageDefFiles = Directory.GetFiles(resolvedDir, "*.toml", SearchOption.TopDirectoryOnly);
+        var allJacketFiles = Directory.GetFiles(resolvedDir, $"*_jacket.*", SearchOption.TopDirectoryOnly);
 
         foreach (var defFilePath in camouflageDefFiles)
         {
@@ -89,15 +103,20 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
             if (parsedData == null)
                 continue;
 
-            var jacketFiles = Directory.GetFiles(resolvedDir, $"{musicID}_jacket.*", SearchOption.TopDirectoryOnly);
+            // 根据当前正在处理的歌曲的ID，从allJacketFiles中筛选出匹配的jacket
+            var jacketFiles = allJacketFiles.Where(
+                s => int.TryParse(Path.GetFileNameWithoutExtension(s).Split('_')[0], out var res) && 
+                     res == musicID && 
+                     AllowedImageExts.Contains(Path.GetExtension(s).ToLowerInvariant())).ToList();
+            
+            if (jacketFiles.Count == 0)
+                MelonLogger.Msg($"[TrackCamouflage] No jacket file for music ID {musicID}");
             foreach (var jacketFilePath in jacketFiles)
             {
-                if (!AllowedImageExts.Contains(Path.GetExtension(jacketFilePath).ToLowerInvariant()))
-                    continue;
-
                 try
                 {
                     parsedData.LoadJacketTexture(jacketFilePath);
+                    MelonLogger.Msg($"[TrackCamouflage] Loaded jacket file {Path.GetFileName(jacketFilePath)} for music ID {musicID}");
                     break;
                 }
                 catch (Exception e)
@@ -376,22 +395,36 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         if (!_camouflagesDict.TryGetValue(musicID, out info))
             return false;
 
-        // Check if any player already played the track
+        // Hide camouflage only when every logged-in player has some difficulty ≥ UnlockScore
         if (!AlwaysShowCamouflage)
         {
+            var allEnteredUnlocked = true;
+
             for (int i = 0; i < 4; ++i)
             {
                 var playerData = Singleton<UserDataManager>.Instance.GetUserData(i);
-                if (playerData != null)
-                {
-                    for (int j = 0; j < 6; ++j)
+                if (playerData == null || !playerData.IsEntry) continue;
+
+                var playerUnlocked = false;
+                for (int j = 0; j < 6; ++j)
+                { // 确认是否，当前玩家已有某个难度达成了unlock分数
+                    if (playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore)
+                        && musicScore != null
+                        && musicScore.achivement >= info.UnlockScore * 10000)
                     {
-                        playerData.ScoreDic[j].TryGetValue(musicID, out UserScore musicScore);
-                        if (musicScore != null)
-                            return false;
+                        playerUnlocked = true;
+                        break;
                     }
                 }
+                
+                if (!playerUnlocked)
+                { // 如果某个人，任何难度都没达到unlock条件，则设置allEnteredUnlocked为false
+                    allEnteredUnlocked = false;
+                    break;
+                }
             }
+
+            if (allEnteredUnlocked) return false; // 如果所有人都已解锁，则不隐藏
         }
 
         return true;
@@ -405,19 +438,22 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
         private string _artist;
         private bool _hideNoteDesigner;
         private string _noteDesigner;
+        private float _unlockScore;
         private Texture2D _jacket;
 
         public string Name => _name;
         public string Artist => _artist;
-        public string NoteDesigner => _hideNoteDesigner ? _noteDesigner : null;
+        public string NoteDesigner => _noteDesigner ?? (_hideNoteDesigner ? "-" : null);
         public Texture2D JacketTexture => _jacket;
+        public float UnlockScore => _unlockScore;
 
         public void Load()
         {
             _name = LoadString("Name") ?? "???";
             _artist = LoadString("Artist") ?? "???";
             _hideNoteDesigner = LoadBoolean("HideNoteDesigner");
-            _noteDesigner = LoadString("NoteDesigner") ?? "-";
+            _noteDesigner = LoadString("NoteDesigner");
+            _unlockScore = LoadFloat("UnlockScore");
         }
 
         public void LoadJacketTexture(string path)
@@ -434,6 +470,22 @@ Camouflage jacket filename is ""<Music ID>_jacket"", jpg or png image are suppor
 
             var str = _source.GetString(key);
             return !string.IsNullOrWhiteSpace(str) ? str : null;
+        }
+        
+        private float LoadFloat(string key)
+        {
+            if (!_source.ContainsKey(key))
+                return 0.0f;
+
+            try
+            {
+                return _source.GetFloat(key);
+            }
+            catch (TomlTypeMismatchException)
+            {
+                // TOML bare numbers like 97 / 102 are integers (TomlLong); GetFloat only accepts floats.
+                return _source.GetInteger(key);
+            }
         }
 
         private bool LoadBoolean(string key)
