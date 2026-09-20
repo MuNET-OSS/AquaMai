@@ -65,14 +65,13 @@ public static class FreedomTimer
         if (!KeyListener.GetKeyDownOrLongPress(addTimeKey, addTimeLongPress)) return;
         if (addTimeSeconds <= 0) return;
 
-        // 设置GameManager._freedomTime（私有属性）
-        var FreedomTimeField = AccessTools.Field(typeof(GameManager), "_freedomTime");
-        var current = (long)FreedomTimeField.GetValue(null);
-        if (current < 0) current = 0;
-        FreedomTimeField.SetValue(null, current + addTimeSeconds * 1000L);
+        var traverse = Traverse.Create(typeof(GameManager));
+        // 设置GameManager._freedomTime（私有字段）
+        var freedomTime = traverse.Field<long>("_freedomTime");
+        freedomTime.Value = Math.Max(freedomTime.Value, 0) + addTimeSeconds * 1000L;
 
         // 时间归零会停止倒计时；重新启动以便追加的时间能继续倒数。
-        if (!GameManager.IsFreedomCountDown) AccessTools.Property(typeof(GameManager), "IsFreedomCountDown").SetValue(null, true); // private set，所以需要反射
+        if (!GameManager.IsFreedomCountDown) traverse.Property<bool>("IsFreedomCountDown").Value = true; // private set，所以需要Traverse反射
         GameManager.IsFreedomTimeUp = false;
         _pendingUiRefresh = true;
         MelonLogger.Msg($"[FreedomTimer] 已将自由模式的时间增加{addTimeSeconds}秒");
@@ -85,25 +84,17 @@ public static class FreedomTimer
     {
         if (!_pendingUiRefresh) return;
         _pendingUiRefresh = false;
-        
-        // PleaseWaitProcess 私有枚举的底层数值
-        const byte FreedomModeStateCountDown = 1;
-        const byte FreedomModeStateTimeUp = 2;
-        const int RemainingStateNormal = 600;
-        const int RemainingStateOneMinute = 60;
-        const int RemainingStateTenSecond = 11;
 
         var traverse = Traverse.Create(__instance);
         var state = traverse.Field("_freedomModeState");
-        var wasTimeUp = Convert.ToByte(state.GetValue()) == FreedomModeStateTimeUp;
-        var totalSeconds = GameManager.GetFreedomModeMSec() * 0.001;
+        var wasTimeUp = Convert.ToByte(state.GetValue()) == 2; // PleaseWaitProcess.FreedomModeState.TimeUp
 
         // 退出 TimeUp，让本帧原版 OnUpdate 重新走倒计时与 SetTime
-        state.SetValue(Enum.ToObject(state.GetValueType(), FreedomModeStateCountDown));
-        var remaining = traverse.Field("_remaining");
-        var remainingState = totalSeconds > 60.0 ? RemainingStateNormal :
-            totalSeconds > 11.0 ? RemainingStateOneMinute : RemainingStateTenSecond;
-        remaining.SetValue(Enum.ToObject(remaining.GetValueType(), remainingState));
+        state.SetValue(Enum.ToObject(state.GetValueType(), 1)); // PleaseWaitProcess.FreedomModeState.CountDown
+        var remaining = traverse.Field<PleaseWaitProcess.RemainingState>("_remaining");
+        var totalSeconds = GameManager.GetFreedomModeMSec() * 0.001;
+        remaining.Value = totalSeconds > 60.0 ? PleaseWaitProcess.RemainingState.Normal :
+            totalSeconds > 11.0 ? PleaseWaitProcess.RemainingState.OneMinute : PleaseWaitProcess.RemainingState.TenSecond;
         traverse.Field("_beforeSeconds").SetValue(-1);
         traverse.Field("_beforeMinutes").SetValue(-1);
 
