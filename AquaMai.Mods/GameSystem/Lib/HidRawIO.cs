@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using HidLibrary;
 
-namespace AquaMai.Mods.GameSystem;
+namespace AquaMai.Mods.GameSystem.Lib;
 
 internal static class HidRawIO
 {

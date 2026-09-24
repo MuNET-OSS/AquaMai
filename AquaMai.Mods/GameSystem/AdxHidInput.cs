@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using AMDaemon;
@@ -10,11 +12,14 @@ using AquaMai.Config.Types;
 using AquaMai.Core.Attributes;
 using AquaMai.Core.Helpers;
 using AquaMai.Mods.Fix;
+using AquaMai.Mods.GameSystem.Lib;
 using AquaMai.Mods.Tweaks;
+using Comio;
 using HarmonyLib;
 using HidLibrary;
 using Main;
 using Manager;
+using Mecha;
 using MelonLoader;
 using UnityEngine;
 
@@ -47,8 +52,77 @@ public class AdxHidInput
     private static bool[] touchProviderRegistered = [false, false];
     private static bool[] ledBrightnessAdjusted = [false, false];
 
+    /// <summary>
+    /// NPro 自定义固件走 WinUSB（GAME 管道），与 ADX/IO4 的 HID 并列。
+    /// 每个玩家槽位同一时刻只会是其中一种，上层输入/灯光逻辑共用。
+    /// </summary>
+    private static readonly NproDevice[] nproDevice = [null, null];
+
+    /// <summary>该槽位当前使用的传输方式。</summary>
+    private enum DeviceKind
+    {
+        None,
+        Hid,
+        Npro,
+    }
+
+    private static readonly DeviceKind[] deviceKind = [DeviceKind.None, DeviceKind.None];
+
+    /// <summary>1P/2P 的 VID/PID；NPro 的 GAME 管道按 PID 区分玩家。</summary>
+    private static int NoronPidFor(int p) => p == 0 ? NoronDx1PProductId : NoronDx2PProductId;
+
+    private static void HandleNproInput(int p, ulong touch, byte buttons, byte extButtons)
+    {
+        touchLatch[p].Update(touch & TouchMask);
+
+        ulong buttonState = 0;
+        if (IsButtonInputEnabled(p))
+        {
+            for (int i = 0; i < buttonBitMap.Length; i++)
+            {
+                if ((buttons & (1 << i)) != 0)
+                {
+                    buttonState |= 1UL << buttonBitMap[i];
+                }
+            }
+
+            buttonState |= (ulong)(extButtons & 0x0F) << 10;
+        }
+
+        inputLatch[p].Update(buttonState);
+    }
+
+    private static bool TryConnectNpro(int p)
+    {
+        try
+        {
+            var device = new NproDevice(p, (touch, buttons, ext) => HandleNproInput(p, touch, buttons, ext));
+            if (!device.TryConnect())
+            {
+                device.Dispose();
+                return false;
+            }
+
+            nproDevice[p] = device;
+            deviceKind[p] = DeviceKind.Npro;
+            connected[p] = true;
+            touchProviderPending[p] = true;
+            MelonLogger.Msg($"[HidInput] Device {p + 1}P connected (NPro WinUSB)");
+            return true;
+        }
+        catch (Exception e)
+        {
+            MelonLogger.Msg($"[HidInput] NPro {p + 1}P 连接失败: {e.Message}");
+            return false;
+        }
+    }
+
     private static bool TryConnectDevice(int p)
     {
+        // 新固件的 NPro 不再暴露 HID，优先尝试 WinUSB GAME 管道；
+        // 旧固件仍是 HID，回落到下面的枚举逻辑即可。
+        if (deviceKind[p] == DeviceKind.None && TryConnectNpro(p)) return true;
+
         var device = p == 0
             ? HidDevices.Enumerate(NoronDxVid, NoronDx1PProductId)
                 .Concat(HidDevices.Enumerate(0x2E3C, [0x5750, 0x5767]))
@@ -65,6 +139,7 @@ public class AdxHidInput
         readBuffer[p] = new byte[device.Capabilities.InputReportByteLength];
         useNoronDxProtocol[p] = device.Attributes.ProductId is NoronDx1PProductId or NoronDx2PProductId;
         connected[p] = true;
+        deviceKind[p] = DeviceKind.Hid;
         if (useNoronDxProtocol[p])
         {
             touchProviderPending[p] = true;
@@ -76,6 +151,8 @@ public class AdxHidInput
 
     private static bool IsDeviceConnected(int p)
     {
+        if (deviceKind[p] == DeviceKind.Npro)
+            return nproDevice[p] != null && nproDevice[p].IsConnected;
         return adxController[p] != null && connected[p];
     }
 
@@ -93,21 +170,38 @@ public class AdxHidInput
 
     private static void DisconnectDevice(int p)
     {
-        var device = adxController[p];
-        if (device == null) return;
+        var npro = nproDevice[p];
+        if (npro != null)
+        {
+            try
+            {
+                npro.Dispose();
+            }
+            catch
+            {
+                // ignore
+            }
 
-        try
-        {
-            device.CloseDevice();
+            nproDevice[p] = null;
         }
-        catch
+
+        var device = adxController[p];
+        if (device != null)
         {
-            // ignore
+            try
+            {
+                device.CloseDevice();
+            }
+            catch
+            {
+                // ignore
+            }
         }
 
         connected[p] = false;
         adxController[p] = null;
         readBuffer[p] = null;
+        deviceKind[p] = DeviceKind.None;
 
         inputLatch[p].Clear();
         touchLatch[p].Clear();
@@ -119,6 +213,9 @@ public class AdxHidInput
 
     private static bool NeedsButtonInput(int p)
     {
+        // NPro 的 GAME 管道始终可用于输入。
+        if (deviceKind[p] == DeviceKind.Npro) return true;
+
         var device = adxController[p];
         if (device == null) return false;
         try
@@ -156,6 +253,29 @@ public class AdxHidInput
             if (!NeedsButtonInput(p))
             {
                 Thread.Sleep(500);
+                continue;
+            }
+
+            // NPro：输入由 NproDevice 自己的读线程处理，这里只负责保活与断线检测。
+            if (deviceKind[p] == DeviceKind.Npro)
+            {
+                var npro = nproDevice[p];
+                if (npro == null)
+                {
+                    if (!RealHotPlugSupport) return;
+                    Thread.Sleep(500);
+                    continue;
+                }
+
+                if (!npro.IsConnected)
+                {
+                    DisconnectDevice(p);
+                    if (!RealHotPlugSupport) return;
+                    continue;
+                }
+
+                npro.TickKeepAlive();
+                Thread.Sleep(50);
                 continue;
             }
 
@@ -246,8 +366,8 @@ public class AdxHidInput
 
     private static ulong GetTouchState(int p)
     {
-        var touchState = useNoronDxProtocol[p] ? touchLatch[p].ReadBits(TouchMask) : 0;
-        return touchState;
+        var hasTouch = deviceKind[p] == DeviceKind.Npro || useNoronDxProtocol[p];
+        return hasTouch ? touchLatch[p].ReadBits(TouchMask) : 0;
     }
 
     private static void TdInit(int p)
@@ -322,9 +442,9 @@ public class AdxHidInput
         for (int i = 0; i < 2; i++)
         {
             var buttonInputEnabled = IsButtonInputEnabled(i);
-            if (!buttonInputEnabled && !useNoronDxProtocol[i] && !RealHotPlugSupport) continue;
+            if (!buttonInputEnabled && !useNoronDxProtocol[i] && deviceKind[i] != DeviceKind.Npro && !RealHotPlugSupport) continue;
             if (hidThreadRunning[i]) continue;
-            if (!RealHotPlugSupport && adxController[i] == null) continue;
+            if (!RealHotPlugSupport && adxController[i] == null && deviceKind[i] != DeviceKind.Npro) continue;
             if (!RealHotPlugSupport && !NeedsButtonInput(i)) continue;
 
             keyEnabled |= buttonInputEnabled;
@@ -658,6 +778,66 @@ public class AdxHidInput
             {
             }
             pipeServer = null;
+        }
+    }
+
+    /// <summary>
+    /// NPro 的灯光接管：在串口发送层转发游戏的原始 SEGA 灯板帧。
+    ///
+    /// 组包与游戏 IoCtrl 完全一致，fade 仍由板子插值，因此视觉行为与真机 1:1；
+    /// mod 只负责"有个东西在发"，从而避免游戏静置时 LED 通道静默、固件 5s 超时
+    /// 回落到 idle 灯效。
+    /// </summary>
+    /// <remarks>
+    /// 类级 <see cref="HarmonyPatch"/> 是必需的：Startup 收集嵌套补丁时，
+    /// 会跳过没有任何特性的嵌套类（见 AquaMai.Core/Startup.cs）。
+    /// </remarks>
+    [HarmonyPatch]
+    public static class NproLedPatches
+    {
+        private static readonly FieldInfo ControlHostField = AccessTools.Field(typeof(Bd15070_4Control), "_host");
+        private static readonly FieldInfo RequestQueueField = AccessTools.Field(typeof(Host), "_reqPacketQueue");
+        private static readonly FieldInfo SendQueueField = AccessTools.Field(typeof(Host), "_sendPacketQueue");
+        private static readonly FieldInfo WriteBufferField = AccessTools.Field(typeof(Host), "_writeBuffer");
+        private static readonly ConcurrentDictionary<Host, int> hostPlayers = new();
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(Bd15070_4Control), MethodType.Constructor, typeof(string), typeof(int))]
+        public static void PostControlConstructor(Bd15070_4Control __instance, int index)
+        {
+            if (index < 0 || index > 1) return;
+            if (ControlHostField.GetValue(__instance) is Host host)
+            {
+                hostPlayers[host] = index;
+            }
+        }
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(Host), "_send")]
+        public static void PreHostSend(Host __instance)
+        {
+            if (!hostPlayers.TryGetValue(__instance, out var p)) return;
+            if (deviceKind[p] != DeviceKind.Npro) return;
+
+            var npro = nproDevice[p];
+            if (npro == null) return;
+
+            // 续写上一帧时包已经转发过，避免部分写重试造成重复。
+            var writeBuffer = (Packet)WriteBufferField.GetValue(__instance);
+            if (writeBuffer.Count > 0) return;
+
+            var requestQueue = (BoardCtrlBase.PacketQueue)RequestQueueField.GetValue(__instance);
+            var sendQueue = (BoardCtrlBase.PacketQueue)SendQueueField.GetValue(__instance);
+            var packet = sendQueue.Count > 0
+                ? sendQueue.Peek()
+                : requestQueue.Count > 0
+                    ? requestQueue.Peek()
+                    : null;
+
+            if (packet != null)
+            {
+                npro.SendLedPacket(packet);
+            }
         }
     }
 }

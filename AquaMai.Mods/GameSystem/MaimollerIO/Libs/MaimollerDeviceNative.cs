@@ -8,6 +8,7 @@ using System.Threading;
 using HidLibrary;
 using MelonLoader;
 using UnityEngine;
+using AquaMai.Mods.GameSystem.Lib;
 
 namespace AquaMai.Mods.GameSystem.MaimollerIO.Libs;
 
