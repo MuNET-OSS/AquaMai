@@ -15,11 +15,15 @@ using JetBrains.Annotations;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
-public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeNull] string serialNumber, [CanBeNull] string locationPath, byte configuration, int interfaceNumber, ReadEndpointID endpoint, int packetSize, int minX, int minY, int maxX, int maxY, bool flip, int radius,
+public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeNull] string serialNumber, [CanBeNull] string locationPath, byte configuration, int packetSize, int minX, int minY, int maxX, int maxY, bool flip, int radius,
     float aExtraRadius = 0, float bExtraRadius = 0, float cExtraRadius = 0, float dExtraRadius = 0, float eExtraRadius = 0,
     int timeoutMilliseconds = 20)
 {
-    private UsbDevice device;
+    protected readonly record struct TouchEndpoint(int InterfaceNumber, ReadEndpointID Endpoint);
+
+    private sealed record ConnectedDevice(UsbDevice Device, TouchEndpoint Endpoint);
+
+    private ConnectedDevice connection;
     private readonly object deviceLock = new();
     private volatile bool stopping;
     private TouchSensorMapper touchSensorMapper;
@@ -30,7 +34,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         {
             lock (deviceLock)
             {
-                return device != null;
+                return connection != null;
             }
         }
     }
@@ -120,6 +124,9 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
     protected virtual void InitializeDevice(UsbDevice usbDevice) { }
 
+    /// <summary>打开设备后、claim 接口前解析实际使用的接口和端点</summary>
+    protected abstract TouchEndpoint ResolveEndpoint(UsbDevice usbDevice);
+
     private UsbDeviceFinder CreateFinder()
     {
         if (!string.IsNullOrWhiteSpace(serialNumber))
@@ -139,6 +146,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     private bool TryConnectDevice()
     {
         UsbDevice newDevice = null;
+        TouchEndpoint? endpoint = null;
         try
         {
             var finder = CreateFinder();
@@ -153,50 +161,55 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
                 winUsbDevice.PowerPolicy.AutoSuspend = false;
             }
 
+            var selectedEndpoint = ResolveEndpoint(newDevice);
+            endpoint = selectedEndpoint;
+
             IUsbDevice wholeDevice = newDevice as IUsbDevice;
             if (wholeDevice != null &&
-                (!wholeDevice.SetConfiguration(configuration) || !wholeDevice.ClaimInterface(interfaceNumber)))
+                (!wholeDevice.SetConfiguration(configuration) || !wholeDevice.ClaimInterface(selectedEndpoint.InterfaceNumber)))
             {
                 throw new InvalidOperationException("USB interface setup failed");
             }
 
             InitializeDevice(newDevice);
             OnDeviceConnected();
+            var newConnection = new ConnectedDevice(newDevice, selectedEndpoint);
             lock (deviceLock)
             {
                 if (stopping)
                 {
-                    CloseDevice(newDevice);
+                    CloseDevice(newConnection);
                     return false;
                 }
 
-                device = newDevice;
+                connection = newConnection;
             }
             ExclusiveTouchDiagnostics.Log(
-                "{0} player={1} connected identifier={2} device-path={3} driver={4}",
-                DiagnosticName, playerNo + 1, serialNumber, newDevice.DevicePath, newDevice.DriverMode);
+                "{0} player={1} connected identifier={2} device-path={3} driver={4} interface={5} endpoint={6}",
+                DiagnosticName, playerNo + 1, serialNumber, newDevice.DevicePath, newDevice.DriverMode,
+                selectedEndpoint.InterfaceNumber, selectedEndpoint.Endpoint);
             return true;
         }
         catch (Exception e)
         {
             MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P: {e.Message}");
-            if (newDevice != null) CloseDevice(newDevice);
+            if (newDevice != null) CloseDevice(newDevice, endpoint);
             return false;
         }
     }
 
     private void CloseCurrentDevice()
     {
-        UsbDevice oldDevice;
+        ConnectedDevice oldConnection;
         lock (deviceLock)
         {
-            oldDevice = device;
-            device = null;
+            oldConnection = connection;
+            connection = null;
         }
 
-        if (oldDevice != null)
+        if (oldConnection != null)
         {
-            CloseDevice(oldDevice);
+            CloseDevice(oldConnection);
             OnDeviceDisconnected();
         }
     }
@@ -205,22 +218,30 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     {
         lock (deviceLock)
         {
-            return ReferenceEquals(target, device);
+            return ReferenceEquals(target, connection?.Device);
         }
     }
 
-    private void CloseDevice(UsbDevice target)
+    private void CloseDevice(ConnectedDevice target)
     {
-        try
+        CloseDevice(target.Device, target.Endpoint);
+    }
+
+    private void CloseDevice(UsbDevice target, TouchEndpoint? endpoint)
+    {
+        if (endpoint is { } selectedEndpoint)
         {
-            if (target is IUsbDevice wholeDevice)
+            try
             {
-                wholeDevice.ReleaseInterface(interfaceNumber);
+                if (target is IUsbDevice wholeDevice)
+                {
+                    wholeDevice.ReleaseInterface(selectedEndpoint.InterfaceNumber);
+                }
             }
-        }
-        catch (Exception e)
-        {
-            MelonLogger.Warning($"[ExclusiveTouch] Cannot release {playerNo + 1}P interface: {e.Message}");
+            catch (Exception e)
+            {
+                MelonLogger.Warning($"[ExclusiveTouch] Cannot release {playerNo + 1}P interface: {e.Message}");
+            }
         }
 
         try
@@ -242,13 +263,13 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         {
             while (!stopping)
             {
-                UsbDevice currentDevice;
+                ConnectedDevice currentConnection;
                 lock (deviceLock)
                 {
-                    currentDevice = device;
+                    currentConnection = connection;
                 }
 
-                if (currentDevice == null)
+                if (currentConnection == null)
                 {
                     Thread.Sleep(1000);
                     TryConnectDevice();
@@ -257,7 +278,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
                 try
                 {
-                    using var reader = currentDevice.OpenEndpointReader(endpoint);
+                    using var reader = currentConnection.Device.OpenEndpointReader(currentConnection.Endpoint.Endpoint);
                     while (!stopping)
                     {
                         int bytesRead;
@@ -274,7 +295,7 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
                             break;
                         }
 
-                        if (bytesRead > 0 && IsCurrentDevice(currentDevice))
+                        if (bytesRead > 0 && IsCurrentDevice(currentConnection.Device))
                         {
                             OnTouchData(buffer);
                         }
