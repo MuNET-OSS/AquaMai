@@ -106,12 +106,16 @@ public partial class CrashForm : Form
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "../AMDaemon/DEVICE/aime.txt"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "start.bat"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "start.cmd"));
+            AddFileToZipIfExist(zip, Path.Combine(gameDir, "launch.bat"));
+            AddFileToZipIfExist(zip, Path.Combine(gameDir, "launch.cmd"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "启动.bat"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "启动.cmd"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "！启动.bat"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "！启动.cmd"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "../start.bat"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "../start.cmd"));
+            AddFileToZipIfExist(zip, Path.Combine(gameDir, "../launch.bat"));
+            AddFileToZipIfExist(zip, Path.Combine(gameDir, "../launch.cmd"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "../启动.bat"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "../启动.cmd"));
             AddFileToZipIfExist(zip, Path.Combine(gameDir, "../！启动.bat"));
@@ -139,8 +143,28 @@ public partial class CrashForm : Form
         }
         finally
         {
+            if (HasOtherMods(gameDir))
+            {
+                textLog.Text = $"如果你同时应用了其他非 MuNET 制作的 Mod，请先将它们移除后并尝试重新复现该问题，否则请不要主动向 MuNET 管理员反馈。\r\n\r\n{textLog.Text}";
+            }
             textLog.Select(0, 0);
         }
+    }
+
+    private static bool HasOtherMods(string gameDir)
+    {
+        var modsDir = Path.Combine(gameDir, "Mods");
+        if (!Directory.Exists(modsDir))
+        {
+            return false;
+        }
+
+        return Directory.EnumerateFiles(modsDir, "*.dll", SearchOption.TopDirectoryOnly).Any(file =>
+        {
+            var fileName = Path.GetFileName(file);
+            return !fileName.Equals("AquaMai.dll", StringComparison.OrdinalIgnoreCase)
+                && !fileName.Equals("MuMod.dll", StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     private static void AddFileToZipIfExist(ZipArchive zip, string file)
