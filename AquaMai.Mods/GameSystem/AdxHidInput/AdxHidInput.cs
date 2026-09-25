@@ -23,13 +23,14 @@ using Mecha;
 using MelonLoader;
 using UnityEngine;
 
-namespace AquaMai.Mods.GameSystem;
+namespace AquaMai.Mods.GameSystem.AdxHidInput;
 
 [ConfigSection(
     name: "ADX / NPRO HID",
     defaultOn: true,
     en: "Input using ADX / NPRO HID (If you are not using ADX / NPRO, enabling this won't do anything)",
     zh: "使用 ADX / NPRO 的自定义输入（没有 ADX / NPRO 的话开了也不会加载，也没有坏处）")]
+[ConfigCollapseNamespace]
 public class AdxHidInput
 {
     private const int NoronDxVid = 0x2E3C;

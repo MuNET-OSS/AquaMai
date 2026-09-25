@@ -5,7 +5,7 @@ using Comio;
 using MelonLoader;
 using AquaMai.Mods.GameSystem.Lib;
 
-namespace AquaMai.Mods.GameSystem;
+namespace AquaMai.Mods.GameSystem.AdxHidInput;
 
 /// <summary>
 /// NPro 自定义固件的 GAME 管道设备（WinUSB）。
