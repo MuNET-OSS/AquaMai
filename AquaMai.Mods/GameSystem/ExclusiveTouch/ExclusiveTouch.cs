@@ -4,26 +4,22 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using LibUsbDotNet.Main;
-using LibUsbDotNet;
-using LibUsbDotNet.WinUsb;
 using MelonLoader;
 using UnityEngine;
 using AquaMai.Core.Helpers;
+using AquaMai.Mods.GameSystem.Lib;
 using System.Threading;
-using JetBrains.Annotations;
 
 namespace AquaMai.Mods.GameSystem.ExclusiveTouch;
 
-public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeNull] string serialNumber, [CanBeNull] string locationPath, byte configuration, int packetSize, int minX, int minY, int maxX, int maxY, bool flip, int radius,
+public abstract class ExclusiveTouchBase(int playerNo, ushort vid, ushort pid, string identifier, int packetSize,
+    int minX, int minY, int maxX, int maxY, bool flip, int radius,
     float aExtraRadius = 0, float bExtraRadius = 0, float cExtraRadius = 0, float dExtraRadius = 0, float eExtraRadius = 0,
     int timeoutMilliseconds = 20)
 {
-    protected readonly record struct TouchEndpoint(int InterfaceNumber, ReadEndpointID Endpoint);
+    protected readonly record struct TouchEndpoint(byte InterfaceNumber, byte EndpointId);
 
-    private sealed record ConnectedDevice(UsbDevice Device, TouchEndpoint Endpoint);
-
-    private ConnectedDevice connection;
+    private WinUsbIo.Device connection;
     private readonly object deviceLock = new();
     private volatile bool stopping;
     private TouchSensorMapper touchSensorMapper;
@@ -122,85 +118,95 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         }
     }
 
-    protected virtual void InitializeDevice(UsbDevice usbDevice) { }
+    protected virtual void InitializeDevice(WinUsbIo.Device device) { }
 
-    /// <summary>打开设备后、claim 接口前解析实际使用的接口和端点</summary>
-    protected abstract TouchEndpoint ResolveEndpoint(UsbDevice usbDevice);
-
-    private UsbDeviceFinder CreateFinder()
-    {
-        if (!string.IsNullOrWhiteSpace(serialNumber))
-        {
-            return new UsbDeviceIdentifierFinder(vid, pid, serialNumber);
-        }
-
-        if (!string.IsNullOrWhiteSpace(locationPath))
-        {
-            return new UsbDeviceLocationFinder(vid, pid, locationPath);
-        }
-
-        // 使用第一个匹配的设备
-        return new UsbDeviceFinder(vid, pid);
-    }
+    /// <summary>按 WinUSB 接口解析实际使用的接口和读端点。</summary>
+    protected abstract TouchEndpoint ResolveEndpoint(WinUsbIo.DevicePath devicePath);
 
     private bool TryConnectDevice()
     {
-        UsbDevice newDevice = null;
-        TouchEndpoint? endpoint = null;
+        List<WinUsbIo.DevicePath> paths;
         try
         {
-            var finder = CreateFinder();
-            newDevice = finder is UsbDeviceIdentifierFinder identifierFinder
-                ? identifierFinder.OpenUsbDevice(DiagnosticName, playerNo)
-                : UsbDevice.OpenUsbDevice(finder);
-            if (newDevice == null) return false;
-
-            if (newDevice is WinUsbDevice winUsbDevice)
-            {
-                // 触摸屏固件不能可靠处理 WinUSB 的选择性挂起
-                winUsbDevice.PowerPolicy.AutoSuspend = false;
-            }
-
-            var selectedEndpoint = ResolveEndpoint(newDevice);
-            endpoint = selectedEndpoint;
-
-            IUsbDevice wholeDevice = newDevice as IUsbDevice;
-            if (wholeDevice != null &&
-                (!wholeDevice.SetConfiguration(configuration) || !wholeDevice.ClaimInterface(selectedEndpoint.InterfaceNumber)))
-            {
-                throw new InvalidOperationException("USB interface setup failed");
-            }
-
-            InitializeDevice(newDevice);
-            OnDeviceConnected();
-            var newConnection = new ConnectedDevice(newDevice, selectedEndpoint);
-            lock (deviceLock)
-            {
-                if (stopping)
-                {
-                    CloseDevice(newConnection);
-                    return false;
-                }
-
-                connection = newConnection;
-            }
-            ExclusiveTouchDiagnostics.Log(
-                "{0} player={1} connected identifier={2} device-path={3} driver={4} interface={5} endpoint={6}",
-                DiagnosticName, playerNo + 1, serialNumber, newDevice.DevicePath, newDevice.DriverMode,
-                selectedEndpoint.InterfaceNumber, selectedEndpoint.Endpoint);
-            return true;
+            paths = WinUsbIo.EnumerateWinUsbInterfaces(vid, pid);
         }
         catch (Exception e)
         {
-            MelonLogger.Error($"[ExclusiveTouch] Cannot initialize {playerNo + 1}P: {e.Message}");
-            if (newDevice != null) CloseDevice(newDevice, endpoint);
+            MelonLogger.Error($"[ExclusiveTouch] Cannot enumerate {playerNo + 1}P: {e.Message}");
             return false;
         }
+
+        if (ExclusiveTouchDiagnostics.Enabled)
+        {
+            ExclusiveTouchDiagnostics.Log(
+                "{0} player={1} device-scan identifier={2} interface-count={3}",
+                DiagnosticName, playerNo + 1, identifier, paths.Count);
+        }
+
+        for (var index = 0; index < paths.Count; index++)
+        {
+            var path = paths[index];
+            WinUsbIo.Device newDevice = null;
+            try
+            {
+                var metadataMatch = path.MatchesIdentifier(identifier);
+                var selectedEndpoint = ResolveEndpoint(path);
+                if (ExclusiveTouchDiagnostics.Enabled)
+                {
+                    ExclusiveTouchDiagnostics.Log(
+                        "{0} player={1} device-candidate index={2} path={3} interface={4} metadata-match={5}",
+                        DiagnosticName, playerNo + 1, index, path.Path, path.InterfaceNumber, metadataMatch);
+                }
+
+                newDevice = WinUsbIo.Device.Open(path.Path, selectedEndpoint.EndpointId);
+                newDevice.SetAutoSuspend(false);
+
+                if (!metadataMatch && !MatchesSerial(newDevice))
+                {
+                    newDevice.Dispose();
+                    continue;
+                }
+
+                InitializeDevice(newDevice);
+                OnDeviceConnected();
+                lock (deviceLock)
+                {
+                    if (stopping)
+                    {
+                        CloseDevice(newDevice);
+                        return false;
+                    }
+
+                    connection = newDevice;
+                }
+                ExclusiveTouchDiagnostics.Log(
+                    "{0} player={1} connected identifier={2} device-path={3} driver=WinUSB interface={4} endpoint=0x{5:X2}",
+                    DiagnosticName, playerNo + 1, identifier, path.Path,
+                    selectedEndpoint.InterfaceNumber, selectedEndpoint.EndpointId);
+                return true;
+            }
+            catch (Exception e)
+            {
+                newDevice?.Dispose();
+                ExclusiveTouchDiagnostics.Log(
+                    "{0} player={1} candidate path={2} failed={3}",
+                    DiagnosticName, playerNo + 1, path.Path, e.Message);
+            }
+        }
+
+        return false;
+    }
+
+    private bool MatchesSerial(WinUsbIo.Device device)
+    {
+        var serial = device.SerialNumber?.Trim();
+        return !string.IsNullOrWhiteSpace(serial) &&
+               string.Equals(identifier?.Trim(), serial, StringComparison.OrdinalIgnoreCase);
     }
 
     private void CloseCurrentDevice()
     {
-        ConnectedDevice oldConnection;
+        WinUsbIo.Device oldConnection;
         lock (deviceLock)
         {
             oldConnection = connection;
@@ -214,39 +220,19 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
         }
     }
 
-    private bool IsCurrentDevice(UsbDevice target)
+    private bool IsCurrentDevice(WinUsbIo.Device target)
     {
         lock (deviceLock)
         {
-            return ReferenceEquals(target, connection?.Device);
+            return ReferenceEquals(target, connection);
         }
     }
 
-    private void CloseDevice(ConnectedDevice target)
+    private void CloseDevice(WinUsbIo.Device target)
     {
-        CloseDevice(target.Device, target.Endpoint);
-    }
-
-    private void CloseDevice(UsbDevice target, TouchEndpoint? endpoint)
-    {
-        if (endpoint is { } selectedEndpoint)
-        {
-            try
-            {
-                if (target is IUsbDevice wholeDevice)
-                {
-                    wholeDevice.ReleaseInterface(selectedEndpoint.InterfaceNumber);
-                }
-            }
-            catch (Exception e)
-            {
-                MelonLogger.Warning($"[ExclusiveTouch] Cannot release {playerNo + 1}P interface: {e.Message}");
-            }
-        }
-
         try
         {
-            target.Close();
+            target.Dispose();
         }
         catch (Exception e)
         {
@@ -257,13 +243,12 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
     private void ReadThread()
     {
         byte[] buffer = new byte[packetSize];
-        using var pinnedBuffer = new PinnedHandle(buffer);
 
         try
         {
             while (!stopping)
             {
-                ConnectedDevice currentConnection;
+                WinUsbIo.Device currentConnection;
                 lock (deviceLock)
                 {
                     currentConnection = connection;
@@ -278,24 +263,22 @@ public abstract class ExclusiveTouchBase(int playerNo, int vid, int pid, [CanBeN
 
                 try
                 {
-                    using var reader = currentConnection.Device.OpenEndpointReader(currentConnection.Endpoint.Endpoint);
                     while (!stopping)
                     {
-                        int bytesRead;
-                        ErrorCode ec = reader.Read(pinnedBuffer.Handle, 0, buffer.Length, 100, out bytesRead); // 100ms 超时
-
-                        if (ec == ErrorCode.IoTimedOut) continue; // 超时就继续等
-                        if (ec != ErrorCode.None)
+                        int bytesRead = currentConnection.Read(buffer, 0, buffer.Length, 100);
+                        if (bytesRead == 0) continue; // 超时就继续等
+                        if (bytesRead < 0)
                         {
-                            MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误: {ec}，尝试重连");
+                            if (stopping) break;
+                            MelonLogger.Msg($"[ExclusiveTouch] {playerNo + 1}P: 读取错误，尝试重连");
                             ExclusiveTouchDiagnostics.Log(
-                                "{0} player={1} reconnect reason=read-error code={2}",
-                                DiagnosticName, playerNo + 1, ec);
+                                "{0} player={1} reconnect reason=read-error",
+                                DiagnosticName, playerNo + 1);
                             CloseCurrentDevice();
                             break;
                         }
 
-                        if (bytesRead > 0 && IsCurrentDevice(currentConnection.Device))
+                        if (IsCurrentDevice(currentConnection))
                         {
                             OnTouchData(buffer);
                         }

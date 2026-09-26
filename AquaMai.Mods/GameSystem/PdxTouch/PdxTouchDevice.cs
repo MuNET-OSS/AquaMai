@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using AquaMai.Mods.GameSystem.ExclusiveTouch;
-using LibUsbDotNet;
-using LibUsbDotNet.Info;
-using LibUsbDotNet.Main;
+using AquaMai.Mods.GameSystem.Lib;
 using PdxTouchConfig = AquaMai.Mods.GameSystem.PdxTouch.PdxTouch;
 
 namespace AquaMai.Mods.GameSystem.PdxTouch;
@@ -12,9 +10,7 @@ internal sealed partial class PdxTouchDevice(int playerNo, string locationPath) 
     playerNo,
     vid: 0x3356,
     pid: 0x3003,
-    serialNumber: locationPath,
-    locationPath,
-    configuration: 1,
+    identifier: locationPath,
     packetSize: 64,
     minX: 18432,
     minY: 0,
@@ -47,44 +43,22 @@ internal sealed partial class PdxTouchDevice(int playerNo, string locationPath) 
 
     protected override string DiagnosticName => kind == PdxKind.OldAt32 ? "PDX-AT32" : "PDX";
 
-    protected override TouchEndpoint ResolveEndpoint(UsbDevice usbDevice)
+    protected override TouchEndpoint ResolveEndpoint(WinUsbIo.DevicePath devicePath)
     {
-        var configs = usbDevice.Configs;
-        if (configs.Count == 0)
-        {
-            throw new InvalidOperationException("PDX device has no USB configuration");
-        }
-
-        var interfaces = configs[0].InterfaceInfoList;
         // Ep02 是原 PDX，Ep01 是 AT32 的旧 PDX
-        if (HasEndpoint(interfaces, interfaceNumber: 1, endpointId: (byte)ReadEndpointID.Ep02))
+        if (devicePath.InterfaceNumber == 1)
         {
             kind = PdxKind.New;
-            return new TouchEndpoint(1, ReadEndpointID.Ep02);
+            return new TouchEndpoint(1, 0x82);
         }
 
-        if (HasEndpoint(interfaces, interfaceNumber: 0, endpointId: (byte)ReadEndpointID.Ep01))
+        if (devicePath.InterfaceNumber == 0)
         {
             kind = PdxKind.OldAt32;
-            return new TouchEndpoint(0, ReadEndpointID.Ep01);
+            return new TouchEndpoint(0, 0x81);
         }
 
-        throw new InvalidOperationException("PDX device has no supported touch endpoint");
-    }
-
-    private static bool HasEndpoint(IReadOnlyCollection<UsbInterfaceInfo> interfaces,
-        int interfaceNumber, byte endpointId)
-    {
-        foreach (var iface in interfaces)
-        {
-            if (iface.Descriptor.InterfaceID != interfaceNumber) continue;
-            foreach (var endpoint in iface.EndpointInfoList)
-            {
-                if (endpoint.Descriptor.EndpointID == endpointId) return true;
-            }
-        }
-
-        return false;
+        throw new InvalidOperationException($"PDX device has unsupported interface {devicePath.InterfaceNumber}");
     }
 
     protected override void OnDeviceConnected()

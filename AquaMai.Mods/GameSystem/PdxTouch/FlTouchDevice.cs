@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 using AquaMai.Mods.GameSystem.ExclusiveTouch;
-using LibUsbDotNet;
-using LibUsbDotNet.Main;
+using AquaMai.Mods.GameSystem.Lib;
 using PdxTouchConfig = AquaMai.Mods.GameSystem.PdxTouch.PdxTouch;
 
 namespace AquaMai.Mods.GameSystem.PdxTouch;
@@ -11,9 +10,7 @@ internal sealed class FlTouchDevice(int playerNo, string locationPath) : Exclusi
     playerNo,
     vid: 0x227D,
     pid: 0x0103,
-    serialNumber: locationPath,
-    locationPath,
-    configuration: 1,
+    identifier: locationPath,
     packetSize: 64,
     minX: 18432,
     minY: 0,
@@ -66,22 +63,23 @@ internal sealed class FlTouchDevice(int playerNo, string locationPath) : Exclusi
         releaseUpdates.Clear();
     }
 
-    protected override TouchEndpoint ResolveEndpoint(UsbDevice _)
-        => new(0, ReadEndpointID.Ep01);
+    protected override TouchEndpoint ResolveEndpoint(WinUsbIo.DevicePath devicePath)
+        => devicePath.InterfaceNumber == 0
+            ? new TouchEndpoint(0, 0x81)
+            : throw new InvalidOperationException($"FLTouch has unsupported interface {devicePath.InterfaceNumber}");
 
-    protected override void InitializeDevice(UsbDevice usbDevice)
+    protected override void InitializeDevice(WinUsbIo.Device device)
     {
         var reportInfo = new byte[2];
-        var getReportPacket = new UsbSetupPacket(0xA1, 0x01, 0x0303, 0, reportInfo.Length);
-        if (!usbDevice.ControlTransfer(ref getReportPacket, reportInfo, reportInfo.Length, out var reportInfoLength) ||
+        if (!device.ControlTransfer(0xA1, 0x01, 0x0303, 0, reportInfo, 0, reportInfo.Length,
+                out var reportInfoLength) ||
             reportInfoLength != reportInfo.Length || reportInfo[0] != 0x03)
         {
             throw new InvalidOperationException("FLTouch capability report query failed");
         }
 
-        var setupPacket = new UsbSetupPacket(0x21, 0x09, 0x0304, 0, MultipleInputModeReport.Length);
-        if (!usbDevice.ControlTransfer(ref setupPacket, MultipleInputModeReport,
-            MultipleInputModeReport.Length, out var lengthTransferred) ||
+        if (!device.ControlTransfer(0x21, 0x09, 0x0304, 0, MultipleInputModeReport, 0,
+                MultipleInputModeReport.Length, out var lengthTransferred) ||
             lengthTransferred != MultipleInputModeReport.Length)
         {
             throw new InvalidOperationException("FLTouch multiple input mode setup failed");

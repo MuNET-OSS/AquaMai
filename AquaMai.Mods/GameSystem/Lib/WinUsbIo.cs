@@ -12,10 +12,10 @@ namespace AquaMai.Mods.GameSystem.Lib;
 /// 极简 WinUSB 封装（P/Invoke），用于访问按 WCID 绑定到 winusb.sys 的 vendor 接口。
 ///
 /// 设计目标：
-/// - 不依赖 LibUsbDotNet（那套 110 文件/8400 行里有三套后端，这里只需要 WinUSB 一条路）；
+/// - 不依赖外部 USB 库，这里只需要 WinUSB 一条路；
 /// - 读用 overlapped I/O + 超时，便于"始终挂着一个 pending URB"的读循环；
-/// - 设备定位先按 USB 硬件 ID 和接口名称找到具体 devnode，再用该 devnode 的
-///   Instance ID 获取 WinUSB 接口路径，同时兼容设备注册表中存在其他接口 GUID 的情况。
+/// - 设备定位按 USB 硬件 ID 找到具体 devnode，再用该 devnode 的 Instance ID
+///   获取实际注册的 WinUSB 接口路径，同时支持按接口号筛选和序列号/端口匹配。
 /// </summary>
 public static class WinUsbIo
 {
@@ -33,12 +33,15 @@ public static class WinUsbIo
     private const uint SPDRP_HARDWAREID = 0x00000001;
     private const uint SPDRP_SERVICE = 0x00000004;
     private const uint SPDRP_FRIENDLYNAME = 0x0000000C;
+    private const uint SPDRP_LOCATION_INFORMATION = 0x0000000D;
+    private const uint SPDRP_LOCATION_PATHS = 0x00000023;
     private const uint GENERIC_READ = 0x80000000;
     private const uint GENERIC_WRITE = 0x40000000;
     private const uint FILE_SHARE_READ = 0x01;
     private const uint FILE_SHARE_WRITE = 0x02;
     private const uint OPEN_EXISTING = 3;
     private const uint FILE_FLAG_OVERLAPPED = 0x40000000;
+    private const uint WINUSB_AUTO_SUSPEND = 0x81;
 
     #region SetupAPI / kernel32 / winusb
 
@@ -72,6 +75,16 @@ public static class WinUsbIo
         public byte PipeId;
         public ushort MaximumPacketSize;
         public byte Interval;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct WINUSB_SETUP_PACKET
+    {
+        public byte RequestType;
+        public byte Request;
+        public ushort Value;
+        public ushort Index;
+        public ushort Length;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -164,23 +177,84 @@ public static class WinUsbIo
     [DllImport("winusb.dll", SetLastError = true)]
     private static extern bool WinUsb_AbortPipe(IntPtr interfaceHandle, byte pipeId);
 
+    [DllImport("winusb.dll", SetLastError = true)]
+    private static extern bool WinUsb_ControlTransfer(IntPtr interfaceHandle, WINUSB_SETUP_PACKET setupPacket,
+        IntPtr buffer, uint bufferLength, out uint lengthTransferred, IntPtr overlapped);
+
+    [DllImport("winusb.dll", SetLastError = true)]
+    private static extern bool WinUsb_SetPowerPolicy(IntPtr interfaceHandle, uint policyType, uint valueLength,
+        ref byte value);
+
     #endregion
 
-    /// <summary>设备接口路径，形如 \\?\usb#vid_2e3c&amp;pid_5751#...#{guid}。</summary>
+    /// <summary>设备接口路径及用于 1P/2P 匹配的 PnP 信息。</summary>
     public sealed class DevicePath
     {
         public string Path { get; init; }
         public ushort Vid { get; init; }
         public ushort Pid { get; init; }
+        public byte InterfaceNumber { get; init; }
+        public string InstanceId { get; init; }
+        public string FriendlyName { get; init; }
+        public string[] LocationPaths { get; init; }
+        public string LocationInformation { get; init; }
+
+        public bool MatchesIdentifier(string identifier)
+        {
+            identifier = identifier?.Trim();
+            if (string.IsNullOrWhiteSpace(identifier)) return true;
+
+            if (MatchesText(InstanceId, identifier) ||
+                MatchesText(FriendlyName, identifier) ||
+                MatchesText(LocationInformation, identifier) ||
+                MatchesSerial(GetInterfaceSerial(Path), identifier))
+            {
+                return true;
+            }
+
+            if (LocationPaths != null)
+            {
+                foreach (var locationPath in LocationPaths)
+                {
+                    if (MatchesLocation(locationPath, identifier)) return true;
+                }
+            }
+
+            return MatchesLocation(LocationInformation, identifier);
+        }
+
+        private static bool MatchesText(string value, string identifier)
+        {
+            return !string.IsNullOrEmpty(value) &&
+                   value.IndexOf(identifier, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool MatchesSerial(string value, string identifier)
+        {
+            return !string.IsNullOrEmpty(value) &&
+                   value.Equals(identifier, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>
-    /// 按 USB 硬件 ID 找 WinUSB 设备，再枚举固件约定及设备实际注册的接口 GUID。
-    ///
-    /// 接口 GUID 用于取得 WinUSB 设备路径，硬件 ID 和 Friendly Name 用于确认目标接口。
+    /// 枚举指定 VID/PID 下所有绑定到 WinUSB 的接口。
+    /// </summary>
+    public static List<DevicePath> EnumerateWinUsbInterfaces(ushort vid, ushort pid)
+    {
+        return EnumerateWinUsbInterfacesCore(vid, pid, null, null, null);
+    }
+
+    /// <summary>
+    /// 枚举指定 VID/PID/接口号的 WinUSB 接口，并兼容固件约定 GUID。
     /// </summary>
     public static List<DevicePath> EnumerateWinUsbInterfaces(
         ushort vid, ushort pid, byte interfaceId, string expectedInterfaceName, Guid expectedInterfaceGuid)
+    {
+        return EnumerateWinUsbInterfacesCore(vid, pid, interfaceId, expectedInterfaceName, expectedInterfaceGuid);
+    }
+
+    private static List<DevicePath> EnumerateWinUsbInterfacesCore(
+        ushort vid, ushort pid, byte? interfaceId, string expectedInterfaceName, Guid? expectedInterfaceGuid)
     {
         var result = new List<DevicePath>();
         var set = SetupDiGetClassDevsW(IntPtr.Zero, "USB", IntPtr.Zero, DIGCF_PRESENT | DIGCF_ALLCLASSES);
@@ -190,8 +264,6 @@ public static class WinUsbIo
             return result;
         }
 
-        var deviceCount = 0;
-        var matchedCount = 0;
         try
         {
             var info = new SP_DEVINFO_DATA();
@@ -199,15 +271,24 @@ public static class WinUsbIo
 
             for (var index = 0; SetupDiEnumDeviceInfo(set, index, ref info); index++)
             {
-                deviceCount++;
-
                 var hardwareIds = ReadStringArrayProperty(set, ref info, SPDRP_HARDWAREID);
                 var service = ReadStringProperty(set, ref info, SPDRP_SERVICE);
                 var deviceName = ReadStringProperty(set, ref info, SPDRP_FRIENDLYNAME);
 
-                if (!MatchesHardwareId(hardwareIds, vid, pid, interfaceId)) continue;
-                if (!string.Equals(service, "WINUSB", StringComparison.OrdinalIgnoreCase)) continue;
-                if (deviceName?.StartsWith(expectedInterfaceName, StringComparison.OrdinalIgnoreCase) != true) continue;
+                if (!TryGetInterfaceNumber(hardwareIds, vid, pid, out var deviceInterfaceNumber)) continue;
+                if (interfaceId.HasValue && interfaceId.Value != deviceInterfaceNumber) continue;
+                if (!string.Equals(service, "WINUSB", StringComparison.OrdinalIgnoreCase))
+                {
+                    MelonLogger.Msg(
+                        $"[WinUsbIo] 跳过 {deviceName ?? hardwareIds[0]}: service={service ?? "(none)"}");
+                    continue;
+                }
+                if (!string.IsNullOrEmpty(expectedInterfaceName) &&
+                    deviceName?.StartsWith(expectedInterfaceName, StringComparison.OrdinalIgnoreCase) != true)
+                {
+                    continue;
+                }
+
                 var instanceId = ReadDeviceInstanceId(set, ref info);
                 if (string.IsNullOrEmpty(instanceId))
                 {
@@ -215,10 +296,17 @@ public static class WinUsbIo
                     continue;
                 }
 
-                matchedCount++;
                 var guids = ReadDeviceInterfaceGuids(set, ref info);
+                if (guids.Count == 0 && !expectedInterfaceGuid.HasValue)
+                {
+                    MelonLogger.Msg($"[WinUsbIo] {deviceName ?? hardwareIds[0]} 没有注册 DeviceInterfaceGUID");
+                    continue;
+                }
 
-                if (!guids.Contains(expectedInterfaceGuid)) guids.Add(expectedInterfaceGuid);
+                if (expectedInterfaceGuid.HasValue && !guids.Contains(expectedInterfaceGuid.Value))
+                {
+                    guids.Add(expectedInterfaceGuid.Value);
+                }
 
                 foreach (var guid in guids)
                 {
@@ -228,7 +316,17 @@ public static class WinUsbIo
                         if (path.Vid != vid || path.Pid != pid) continue;
                         if (result.Exists(it => it.Path == path.Path)) continue;
 
-                        result.Add(path);
+                        result.Add(new DevicePath
+                        {
+                            Path = path.Path,
+                            Vid = path.Vid,
+                            Pid = path.Pid,
+                            InterfaceNumber = deviceInterfaceNumber,
+                            InstanceId = instanceId,
+                            FriendlyName = deviceName,
+                            LocationPaths = ReadStringArrayProperty(set, ref info, SPDRP_LOCATION_PATHS),
+                            LocationInformation = ReadStringProperty(set, ref info, SPDRP_LOCATION_INFORMATION),
+                        });
                     }
                 }
             }
@@ -286,31 +384,102 @@ public static class WinUsbIo
         return instanceId.ToString();
     }
 
-    private static bool ContainsVid(string[] hardwareIds, ushort vid)
+    private static bool TryGetInterfaceNumber(string[] hardwareIds, ushort vid, ushort pid, out byte interfaceNumber)
     {
-        if (hardwareIds == null) return false;
-
-        var vidPart = $"VID_{vid:X4}";
-        foreach (var hardwareId in hardwareIds)
-            if (hardwareId.IndexOf(vidPart, StringComparison.OrdinalIgnoreCase) >= 0)
-                return true;
-
-        return false;
-    }
-
-    private static bool MatchesHardwareId(string[] hardwareIds, ushort vid, ushort pid, byte interfaceId)
-    {
+        interfaceNumber = 0;
         if (hardwareIds == null) return false;
 
         var prefix = $"USB\\VID_{vid:X4}&PID_{pid:X4}";
-        var interfacePart = $"&MI_{interfaceId:X2}";
+        var matched = false;
         foreach (var hardwareId in hardwareIds)
         {
             if (!hardwareId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
-            if (hardwareId.IndexOf(interfacePart, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            matched = true;
+
+            var interfacePart = "&MI_";
+            var index = hardwareId.IndexOf(interfacePart, StringComparison.OrdinalIgnoreCase);
+            // 复合设备的硬件 ID 才带 MI_xx；单接口设备默认接口 0。
+            if (index >= 0 &&
+                index + interfacePart.Length + 2 <= hardwareId.Length &&
+                byte.TryParse(hardwareId.Substring(index + interfacePart.Length, 2),
+                    System.Globalization.NumberStyles.HexNumber, null, out var parsed))
+            {
+                interfaceNumber = parsed;
+                return true;
+            }
         }
 
-        return false;
+        return matched;
+    }
+
+    private static string GetInterfaceSerial(string path)
+    {
+        var parts = path.Split('#');
+        for (var i = 0; i + 1 < parts.Length; i++)
+        {
+            if (parts[i].IndexOf("vid_", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                parts[i].IndexOf("pid_", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return parts[i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private static bool MatchesLocation(string deviceLocation, string targetLocation)
+    {
+        if (string.IsNullOrEmpty(deviceLocation) || string.IsNullOrWhiteSpace(targetLocation)) return false;
+
+        if (deviceLocation.Equals(targetLocation, StringComparison.OrdinalIgnoreCase)) return true;
+        if (deviceLocation.IndexOf(targetLocation, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+
+        var devicePorts = ExtractPortNumbers(deviceLocation);
+        var targetPorts = ExtractPortNumbers(targetLocation);
+        if (devicePorts.Count == 0 || targetPorts.Count == 0) return false;
+        if (devicePorts.Count < targetPorts.Count) return false;
+
+        var matched = 0;
+        for (var i = 0; i < devicePorts.Count && matched < targetPorts.Count; i++)
+        {
+            if (devicePorts[i] == targetPorts[matched])
+            {
+                matched++;
+            }
+        }
+
+        return matched == targetPorts.Count;
+    }
+
+    private static List<int> ExtractPortNumbers(string path)
+    {
+        var result = new List<int>();
+        var usbMatches = System.Text.RegularExpressions.Regex.Matches(path, @"#USB\((\d+)\)");
+        foreach (System.Text.RegularExpressions.Match match in usbMatches)
+        {
+            if (match.Groups.Count > 1 && int.TryParse(match.Groups[1].Value, out var port))
+            {
+                result.Add(port);
+            }
+        }
+
+        if (result.Count > 0) return result;
+
+        foreach (var part in path.Split(new[] { '.', '-' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part.StartsWith("bus", StringComparison.OrdinalIgnoreCase) ||
+                part.StartsWith("addr", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (int.TryParse(part.Trim(), out var port))
+            {
+                result.Add(port);
+            }
+        }
+
+        return result;
     }
 
     private static List<Guid> ReadDeviceInterfaceGuids(IntPtr set, ref SP_DEVINFO_DATA info)
@@ -453,13 +622,26 @@ public static class WinUsbIo
         private readonly IntPtr _winUsb;
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
+        private readonly object _controlLock = new();
         private int _disposeState;
+        private string _serialNumber;
+        private bool _serialNumberRead;
 
         public byte InPipeId { get; }
         public byte OutPipeId { get; }
         public ushort InPacketSize { get; }
 
         public bool IsOpen => Volatile.Read(ref _disposeState) == 0 && !_file.IsInvalid && !_file.IsClosed;
+        public string SerialNumber
+        {
+            get
+            {
+                if (_serialNumberRead) return _serialNumber;
+                _serialNumberRead = true;
+                _serialNumber = ReadSerialNumber();
+                return _serialNumber;
+            }
+        }
 
         private Device(SafeFileHandle file, IntPtr winUsb, byte inPipe, byte outPipe, ushort inPacketSize)
         {
@@ -470,10 +652,19 @@ public static class WinUsbIo
             InPacketSize = inPacketSize;
         }
 
-        /// <summary>
-        /// 打开设备并解析 bulk 端点。失败抛出 <see cref="Win32Exception"/> 风格的信息。
-        /// </summary>
+        /// <summary>打开设备并选择一对 bulk 端点。</summary>
         public static Device Open(string devicePath)
+        {
+            return OpenCore(devicePath, null, requireWrite: true);
+        }
+
+        /// <summary>打开设备并选择指定的读端点，允许接口只有单向端点。</summary>
+        public static Device Open(string devicePath, byte readPipeId)
+        {
+            return OpenCore(devicePath, readPipeId, requireWrite: false);
+        }
+
+        private static Device OpenCore(string devicePath, byte? readPipeId, bool requireWrite)
         {
             var file = CreateFileW(devicePath, GENERIC_READ | GENERIC_WRITE,
                 FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, IntPtr.Zero);
@@ -501,8 +692,22 @@ public static class WinUsbIo
                         throw new InvalidOperationException($"WinUsb_QueryPipe 失败 ({Marshal.GetLastWin32Error()})");
 
                     // PipeType 0 = Control, 1 = Iso, 2 = Bulk, 3 = Interrupt
-                    if (pipe.PipeType != 2) continue;
-                    if ((pipe.PipeId & 0x80) != 0)
+                    var isDataPipe = readPipeId.HasValue ? pipe.PipeType is 2 or 3 : pipe.PipeType == 2;
+                    if (!isDataPipe) continue;
+
+                    if (readPipeId.HasValue)
+                    {
+                        if (pipe.PipeId == readPipeId.Value && (pipe.PipeId & 0x80) != 0)
+                        {
+                            inPipe = pipe.PipeId;
+                            inPacket = pipe.MaximumPacketSize;
+                        }
+                        else if ((pipe.PipeId & 0x80) == 0)
+                        {
+                            outPipe = pipe.PipeId;
+                        }
+                    }
+                    else if ((pipe.PipeId & 0x80) != 0)
                     {
                         inPipe = pipe.PipeId;
                         inPacket = pipe.MaximumPacketSize;
@@ -513,8 +718,12 @@ public static class WinUsbIo
                     }
                 }
 
-                if (inPipe == 0 || outPipe == 0)
-                    throw new InvalidOperationException("接口上缺少双向 bulk 端点");
+                if (inPipe == 0)
+                    throw new InvalidOperationException(readPipeId.HasValue
+                        ? $"接口上缺少读端点 0x{readPipeId.Value:X2}"
+                        : "接口上缺少 bulk 读端点");
+                if (requireWrite && outPipe == 0)
+                    throw new InvalidOperationException("接口上缺少 bulk 写端点");
 
                 return new Device(file, winUsb, inPipe, outPipe, inPacket);
             }
@@ -579,7 +788,7 @@ public static class WinUsbIo
         /// </summary>
         public int Write(byte[] buffer, int offset, int count, int timeoutMs)
         {
-            if (!IsOpen) return -1;
+            if (!IsOpen || OutPipeId == 0) return -1;
 
             lock (_writeLock)
             {
@@ -615,6 +824,121 @@ public static class WinUsbIo
             }
         }
 
+        /// <summary>执行同步控制传输。</summary>
+        public bool ControlTransfer(byte requestType, byte request, ushort value, ushort index,
+            byte[] buffer, int offset, int count, out int lengthTransferred)
+        {
+            lengthTransferred = 0;
+            if (!IsOpen) return false;
+
+            var setup = new WINUSB_SETUP_PACKET
+            {
+                RequestType = requestType,
+                Request = request,
+                Value = value,
+                Index = index,
+                Length = (ushort)count,
+            };
+
+            var pinned = default(GCHandle);
+            lock (_controlLock)
+            {
+                if (!IsOpen) return false;
+
+                using var evt = new ManualResetEvent(false);
+                var overlapped = CreateOverlapped(evt.SafeWaitHandle.DangerousGetHandle());
+                try
+                {
+                    var ptr = IntPtr.Zero;
+                    if (buffer != null && count > 0)
+                    {
+                        pinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+                        ptr = IntPtr.Add(pinned.AddrOfPinnedObject(), offset);
+                    }
+
+                    var ok = WinUsb_ControlTransfer(_winUsb, setup, ptr, (uint)count, out var transferred,
+                        overlapped);
+                    if (!ok && Marshal.GetLastWin32Error() != ERROR_IO_PENDING) return false;
+
+                    if (!ok)
+                    {
+                        if (!evt.WaitOne(1000))
+                        {
+                            CancelIoEx(_file, overlapped);
+                            GetOverlappedResult(_file, overlapped, out _, true);
+                            return false;
+                        }
+
+                        if (!GetOverlappedResult(_file, overlapped, out transferred, false)) return false;
+                    }
+
+                    lengthTransferred = (int)transferred;
+                    return true;
+                }
+                finally
+                {
+                    if (pinned.IsAllocated) pinned.Free();
+                    Marshal.FreeHGlobal(overlapped);
+                }
+            }
+        }
+
+        /// <summary>关闭 WinUSB 选择性挂起，部分触摸固件在挂起后会丢报告。</summary>
+        public bool SetAutoSuspend(bool enabled)
+        {
+            if (!IsOpen) return false;
+
+            byte value = enabled ? (byte)1 : (byte)0;
+            lock (_controlLock)
+            {
+                return IsOpen && WinUsb_SetPowerPolicy(_winUsb, WINUSB_AUTO_SUSPEND, 1, ref value);
+            }
+        }
+
+        private string ReadSerialNumber()
+        {
+            var deviceDescriptor = new byte[18];
+            if (!ControlTransfer(0x80, 0x06, 0x0100, 0, deviceDescriptor, 0, deviceDescriptor.Length,
+                    out var length) ||
+                length < deviceDescriptor.Length)
+            {
+                return null;
+            }
+
+            var serialIndex = deviceDescriptor[16];
+            if (serialIndex == 0) return null;
+
+            ushort languageId = 0;
+            var languageDescriptor = new byte[4];
+            if (ControlTransfer(0x80, 0x06, 0x0300, 0, languageDescriptor, 0, languageDescriptor.Length,
+                    out length) &&
+                length >= languageDescriptor.Length)
+            {
+                languageId = BitConverter.ToUInt16(languageDescriptor, 2);
+            }
+
+            if (languageId == 0) languageId = 0x0409;
+
+            var header = new byte[2];
+            if (!ControlTransfer(0x80, 0x06, (ushort)(0x0300 | serialIndex), languageId, header, 0, header.Length,
+                    out length) ||
+                length < header.Length || header[0] < header.Length)
+            {
+                return null;
+            }
+
+            var descriptor = new byte[header[0]];
+            if (!ControlTransfer(0x80, 0x06, (ushort)(0x0300 | serialIndex), languageId, descriptor, 0,
+                    descriptor.Length, out length) ||
+                length < header.Length || descriptor[1] != 0x03)
+            {
+                return null;
+            }
+
+            var charCount = (descriptor[0] - header.Length) / 2;
+            return Encoding.Unicode.GetString(descriptor, header.Length, charCount * 2).TrimEnd('\0');
+        }
+
         private static IntPtr CreateOverlapped(IntPtr eventHandle)
         {
             var overlapped = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(OVERLAPPED)));
@@ -648,6 +972,7 @@ public static class WinUsbIo
 
             lock (_readLock)
             lock (_writeLock)
+            lock (_controlLock)
             {
                 if (_winUsb != IntPtr.Zero) WinUsb_Free(_winUsb);
                 _file.Dispose();
