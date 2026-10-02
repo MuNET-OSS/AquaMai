@@ -1,4 +1,5 @@
 ﻿using AquaMai.Config.Attributes;
+using AquaMai.Mods.Fancy;
 using HarmonyLib;
 using Manager;
 using Process;
@@ -22,6 +23,8 @@ public class SkipTrackStart
     [HarmonyPatch(typeof (MusicSelectProcess), "GameStart")]
     public static bool GameStart(MusicSelectProcess __instance, ProcessDataContainer ___container)
     {
+        if (CustomIntroCinematic.WillTakeOver) return true;
+
         ___container.processManager.AddProcess(new TrackStartProcess(___container), 50);
         ___container.processManager.ReleaseProcess(__instance);
         SoundManager.PreviewEnd();

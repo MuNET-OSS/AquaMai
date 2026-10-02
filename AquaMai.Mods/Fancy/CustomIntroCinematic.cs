@@ -907,29 +907,65 @@ public class CustomIntroCinematic
     [HarmonyPatch(typeof(MusicSelectProcess), "GameStart")]
     public static bool GameStartPrefix(MusicSelectProcess __instance)
     {
+        if (!TryGetCurrentVideo(out var videoPath)) return true;
+
         try
         {
-            if (!_isInitialized) return true;
+            MelonLogger.Msg($"[CustomIntroCinematic] Play intro cinematic for music {GameManager.SelectMusicID[0]}");
+
+            // 使用反射获取 MusicSelectProcess 的 container 字段
+            var containerField = typeof(ProcessBase).GetField("container",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var container = (ProcessDataContainer)containerField.GetValue(__instance);
+
+            // 使用自定义的 SimpleMovieTrackStartProcess 替换 TrackStartProcess
+            container.processManager.AddProcess(
+                new FadeProcess(container, __instance,
+                    new SimpleMovieTrackStartProcess(container, videoPath),
+                    releaseCustomMaterial: false), 50);
+
+            SoundManager.PreviewEnd();
+            SoundManager.StopBGM(2);
+
+            return false; // 阻止原方法执行
+        }
+        catch (Exception e)
+        {
+            MelonLogger.Msg($"[CustomIntroCinematic] GameStartPrefix error: {e}");
+        }
+
+        return true; // 正常执行原方法
+    }
+
+    public static bool WillTakeOver => TryGetCurrentVideo(out _);
+
+    public static bool TryGetCurrentVideo(out (string leftPath, string rightPath, string acbPath, string awbPath) videoPath)
+    {
+        videoPath = default;
+
+        try
+        {
+            if (!_isInitialized) return false;
 
             // 复刻GameStart的检查逻辑
-            if (GameManager.IsCourseMode) return true;
-            if (GameManager.IsKaleidxScopeMode) return true;
-            if (Singleton<SpecialRomManager>.Instance.IsSpecialMovie()) return true;
+            if (GameManager.IsCourseMode) return false;
+            if (GameManager.IsKaleidxScopeMode) return false;
+            if (Singleton<SpecialRomManager>.Instance.IsSpecialMovie()) return false;
 
             // 自由模式不生效
-            if (GameManager.IsFreedomMode) return true;
+            if (GameManager.IsFreedomMode) return false;
 
             // 仅在 Normal 模式下生效
-            if (!GameManager.IsNormalMode) return true;
+            if (!GameManager.IsNormalMode) return false;
 
             // 试玩模式不生效
-            if (GameManager.IsTrialPlay) return true;
+            if (GameManager.IsTrialPlay) return false;
 
             // 联机对战不生效
             Manager.Party.Party.IManager PartyManager = Manager.Party.Party.Party.Get();
             if (SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup.gameSetting.MachineGroupID != DB.MachineGroupID.OFF && PartyManager != null && PartyManager.IsJoinAndActive())
-                return true;
-            
+                return false;
+
             //获取曲目ID
             var musicId = GameManager.SelectMusicID[0];
 
@@ -945,40 +981,19 @@ public class CustomIntroCinematic
                         {
                             playerData.ScoreDic[j].TryGetValue(musicId, out UserScore musicScore);
                             if (musicScore != null)
-                                return true;
+                                return false;
                         }
                     }
                 }
             }
 
             // 检查当前选择的歌曲是否为目标歌曲
-            if (_targetIDMovieDict.TryGetValue(musicId, out var videoPath))
-            {
-                MelonLogger.Msg($"[CustomIntroCinematic] Play intro cinematic for music {musicId}");
-
-                // 使用反射获取 MusicSelectProcess 的 container 字段
-                var containerField = typeof(ProcessBase).GetField("container",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var container = (ProcessDataContainer)containerField.GetValue(__instance);
-
-                // 使用自定义的 SimpleMovieTrackStartProcess 替换 TrackStartProcess
-                container.processManager.AddProcess(
-                    new FadeProcess(container, __instance,
-                        new SimpleMovieTrackStartProcess(container, videoPath),
-                        releaseCustomMaterial: false), 50);
-
-                SoundManager.PreviewEnd();
-                SoundManager.StopBGM(2);
-
-                return false; // 阻止原方法执行
-            }
+            return _targetIDMovieDict.TryGetValue(musicId, out videoPath);
         }
         catch (Exception e)
         {
-            MelonLogger.Msg($"[CustomIntroCinematic] GameStartPrefix error: {e}");
+            MelonLogger.Msg($"[CustomIntroCinematic] TryGetCurrentVideo error: {e}");
+            return false;
         }
-
-        return true; // 正常执行原方法
     }
-
 }
