@@ -20,6 +20,9 @@ public class MaimollerDeviceNative : IMaimollerDevice
     private const int ButtonBitOffset = 34;
     private const int SystemBitOffset = 42;
     private const ulong TouchMask = (1UL << 34) - 1; // bits 0-33
+    // 输出报告的最大允许间隔, 超过就由保活线程补发
+    private const int OutputTimeoutMs = 100;
+    private const int KeepAliveCheckIntervalMs = 25;
 
     private readonly int _player;
 
@@ -35,6 +38,7 @@ public class MaimollerDeviceNative : IMaimollerDevice
     private readonly InputLatch _inputLatch = new();
     private readonly MaimollerOutputReport _output = new();
     private readonly MaimollerLedManager _ledManager;
+    private readonly object _outputLock = new();
 
 
     public MaimollerDeviceNative(int player)
@@ -59,6 +63,13 @@ public class MaimollerDeviceNative : IMaimollerDevice
             IsBackground = true
         };
         hidThread.Start();
+
+        // 启动保活线程: 游戏初始化/加载阶段主循环不会调用 Update, 手台长时间收不到任何数据会切回固件自带的待机灯
+        var keepAliveThread = new Thread(KeepAliveThread)
+        {
+            IsBackground = true
+        };
+        keepAliveThread.Start();
     }
 
     public void Update()
@@ -189,10 +200,34 @@ public class MaimollerDeviceNative : IMaimollerDevice
     }
     #endregion
     #region Output
-    private void WriteOutputReport()
+    // 输出报告超时补发: 保证距上次发包不超过 OutputTimeoutMs。
+    // 游戏初始化/加载阶段 GameMain.Update 被 isInitialize 门控挡住, 主路径完全不发包,
+    // 由这里维持心跳, 避免手台固件因 LED 通道静默回落到自带待机灯
+    private void KeepAliveThread()
+    {
+        while (_hidThreadRunning)
+        {
+            Thread.Sleep(KeepAliveCheckIntervalMs);
+            try
+            {
+                if (Stopwatch.GetTimestamp() - _lastWriteTick >= Stopwatch.Frequency * OutputTimeoutMs / 1000)
+                    WriteOutputReport(force: true);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
+
+    private void WriteOutputReport(bool force = false)
     {
         var device = _device;
         if (device == null || !_connected) return;
+
+        // 主线程绝不等待后台保活线程的 HID I/O: 抢不到锁就跳过本次下发,
+        // 内容没有变化时下一帧会原样重发, 对视觉无影响
+        if (!System.Threading.Monitor.TryEnter(_outputLock)) return;
         try
         {
             // Serialize into pre-allocated buffer
@@ -205,7 +240,7 @@ public class MaimollerDeviceNative : IMaimollerDevice
             _reportBuffer[31] = (byte)_output.indicators;
 
             // Skip write if unchanged since last send
-            if (!_forceNextWrite && _reportBuffer.SequenceEqual(_lastSentReport) && Stopwatch.GetTimestamp() - _lastWriteTick < Stopwatch.Frequency / 2)
+            if (!force && !_forceNextWrite && _reportBuffer.SequenceEqual(_lastSentReport) && Stopwatch.GetTimestamp() - _lastWriteTick < Stopwatch.Frequency / 2)
                 return;
 
             HidRawIO.Write(device, _reportBuffer);
@@ -217,6 +252,10 @@ public class MaimollerDeviceNative : IMaimollerDevice
         {
             // 写入失败视为断线
             DisconnectDevice();
+        }
+        finally
+        {
+            System.Threading.Monitor.Exit(_outputLock);
         }
     }
     #endregion
