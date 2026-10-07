@@ -20,25 +20,28 @@ public class MaimollerDeviceNative : IMaimollerDevice
     private const int ButtonBitOffset = 34;
     private const int SystemBitOffset = 42;
     private const ulong TouchMask = (1UL << 34) - 1; // bits 0-33
-    // 输出报告的最大允许间隔, 超过就由保活线程补发
-    private const int OutputTimeoutMs = 100;
-    private const int KeepAliveCheckIntervalMs = 25;
+    // 固件静默多久会回落到待机灯是实测值, 超过这个间隔写线程就补发一次
+    private const int OutputKeepAliveMs = 500;
+    private static readonly long OutputKeepAliveTicks = Stopwatch.Frequency * OutputKeepAliveMs / 1000;
 
     private readonly int _player;
 
     private volatile HidDevice? _device;
     private byte[]? _readBuffer; // pre-allocated, sized from device capabilities
     private bool _hidThreadRunning;
-    private readonly byte[] _reportBuffer = new byte[64];
-    private readonly byte[] _lastSentReport = new byte[64];
-    private bool _forceNextWrite = true;
-    private long _lastWriteTick;
+    private long _lastWriteTick; // 只在写线程里访问
     private volatile bool _connected;
 
     private readonly InputLatch _inputLatch = new();
-    private readonly MaimollerOutputReport _output = new();
+    private readonly MaimollerOutputReport _output = new(); // 只有主线程会修改
     private readonly MaimollerLedManager _ledManager;
-    private readonly object _outputLock = new();
+
+    // HID 写入全部交给写线程, 这把锁只包住 64 字节快照的拷贝和比较, 不包 HID I/O
+    private readonly object _outputSync = new();
+    private readonly byte[] _scratch = new byte[64];    // 主线程私有
+    private readonly byte[] _published = new byte[64];  // 最新已发布的状态
+    private readonly byte[] _sendBuffer = new byte[64]; // 写线程私有
+    private bool _outputDirty;
 
 
     public MaimollerDeviceNative(int player)
@@ -64,19 +67,21 @@ public class MaimollerDeviceNative : IMaimollerDevice
         };
         hidThread.Start();
 
-        // 启动保活线程: 游戏初始化/加载阶段主循环不会调用 Update, 手台长时间收不到任何数据会切回固件自带的待机灯
-        var keepAliveThread = new Thread(KeepAliveThread)
+        // 唯一的 HID 写入线程: 有变化立即发, 空闲时按 OutputKeepAliveMs 补发,
+        // 避免游戏初始化/加载/卡顿期间手台 LED 通道静默回落到固件自带的待机灯
+        PublishOutput();
+        var outputThread = new Thread(OutputThread)
         {
             IsBackground = true
         };
-        keepAliveThread.Start();
+        outputThread.Start();
     }
 
     public void Update()
     {
         if (!_hidThreadRunning) throw new InvalidOperationException($"MaimollerDevice {_player + 1}P not opened");
 
-        WriteOutputReport();
+        PublishOutput();
     }
 
     #region Input
@@ -132,6 +137,12 @@ public class MaimollerDeviceNative : IMaimollerDevice
             _device = device;
             _readBuffer = new byte[device.Capabilities.InputReportByteLength];
             _connected = true;
+            // 重连后设备状态未知, 立即补发一次
+            lock (_outputSync)
+            {
+                _outputDirty = true;
+                System.Threading.Monitor.Pulse(_outputSync);
+            }
             MelonLogger.Msg($"[MaimollerDevice] {_player + 1}P connected");
             return true;
         }
@@ -156,7 +167,6 @@ public class MaimollerDeviceNative : IMaimollerDevice
         _device = null;
         _readBuffer = null;
         _inputLatch.Clear();
-        _forceNextWrite = true;
         MelonLogger.Msg($"[MaimollerDevice] {_player + 1}P disconnected");
     }
     #endregion
@@ -200,67 +210,83 @@ public class MaimollerDeviceNative : IMaimollerDevice
     }
     #endregion
     #region Output
-    // 输出报告超时补发: 保证距上次发包不超过 OutputTimeoutMs。
-    // 游戏初始化/加载阶段 GameMain.Update 被 isInitialize 门控挡住, 主路径完全不发包,
-    // 由这里维持心跳, 避免手台固件因 LED 通道静默回落到自带待机灯
-    private void KeepAliveThread()
+    // 主线程每帧调用: 只把当前状态发布成快照并通知写线程, 不做任何 HID I/O
+    private void PublishOutput()
+    {
+        SerializeOutput(_scratch);
+        lock (_outputSync)
+        {
+            if (_scratch.SequenceEqual(_published)) return;
+            Array.Copy(_scratch, _published, 64);
+            _outputDirty = true;
+            System.Threading.Monitor.Pulse(_outputSync);
+        }
+    }
+
+    // 写线程: 被 PublishOutput 唤醒或等到保活超时就发一次, 是唯一的 HID 写入方
+    private void OutputThread()
     {
         while (_hidThreadRunning)
         {
-            Thread.Sleep(KeepAliveCheckIntervalMs);
+            if (!IsDeviceConnected())
+            {
+                Thread.Sleep(OutputKeepAliveMs);
+                continue;
+            }
+
+            bool due;
+            lock (_outputSync)
+            {
+                var idle = Stopwatch.GetTimestamp() - _lastWriteTick;
+                if (!_outputDirty && idle < OutputKeepAliveTicks)
+                    System.Threading.Monitor.Wait(_outputSync, (int)Math.Max(1, (OutputKeepAliveTicks - idle) * 1000 / Stopwatch.Frequency));
+                due = _outputDirty || Stopwatch.GetTimestamp() - _lastWriteTick >= OutputKeepAliveTicks;
+                if (due) _outputDirty = false;
+            }
+            if (!due) continue;
+
             try
             {
-                if (Stopwatch.GetTimestamp() - _lastWriteTick >= Stopwatch.Frequency * OutputTimeoutMs / 1000)
-                    WriteOutputReport(force: true);
+                WriteOutputReport();
             }
             catch
             {
-                // ignore
+                // 写入失败视为断线
+                DisconnectDevice();
             }
         }
     }
 
-    private void WriteOutputReport(bool force = false)
+    private void WriteOutputReport()
     {
         var device = _device;
         if (device == null || !_connected) return;
-
-        // 主线程绝不等待后台保活线程的 HID I/O: 抢不到锁就跳过本次下发,
-        // 内容没有变化时下一帧会原样重发, 对视觉无影响
-        if (!System.Threading.Monitor.TryEnter(_outputLock)) return;
-        try
+        lock (_outputSync)
         {
-            // Serialize into pre-allocated buffer
-            _reportBuffer[0] = 1; // report ID
-            Array.Copy(_output.buttonColors, 0, _reportBuffer, 1, 24);
-            _reportBuffer[25] = _output.circleBrightness;
-            _reportBuffer[26] = _output.bodyBrightness;
-            _reportBuffer[27] = _output.sideBrightness;
-            Array.Copy(_output.billboardColor, 0, _reportBuffer, 28, 3);
-            _reportBuffer[31] = (byte)_output.indicators;
+            Array.Copy(_published, _sendBuffer, 64);
+        }
+        HidRawIO.Write(device, _sendBuffer);
+        _lastWriteTick = Stopwatch.GetTimestamp();
+    }
 
-            // Skip write if unchanged since last send
-            if (!force && !_forceNextWrite && _reportBuffer.SequenceEqual(_lastSentReport) && Stopwatch.GetTimestamp() - _lastWriteTick < Stopwatch.Frequency / 2)
-                return;
-
-            HidRawIO.Write(device, _reportBuffer);
-            Array.Copy(_reportBuffer, _lastSentReport, 64);
-            _lastWriteTick = Stopwatch.GetTimestamp();
-            _forceNextWrite = false;
-        }
-        catch
-        {
-            // 写入失败视为断线
-            DisconnectDevice();
-        }
-        finally
-        {
-            System.Threading.Monitor.Exit(_outputLock);
-        }
+    private void SerializeOutput(byte[] buffer)
+    {
+        buffer[0] = 1; // report ID
+        Array.Copy(_output.buttonColors, 0, buffer, 1, 24);
+        buffer[25] = _output.circleBrightness;
+        buffer[26] = _output.bodyBrightness;
+        buffer[27] = _output.sideBrightness;
+        Array.Copy(_output.billboardColor, 0, buffer, 28, 3);
+        buffer[31] = (byte)_output.indicators;
     }
     #endregion
     #region LED
-    public void LedPreExecute() => _ledManager.PreExecute();
+    public void LedPreExecute()
+    {
+        _ledManager.PreExecute();
+        // 渐变插值在这里算完, 是每帧 LED 状态的终点, 顺便发布一次
+        PublishOutput();
+    }
     public void SetButtonColor(int index, Color32 color) => _ledManager.SetButtonColor(index, color);
     public void SetButtonColorFade(int index, Color32 color, long duration) => _ledManager.SetButtonColorFade(index, color, duration);
     public void SetBodyIntensity(int index, byte intensity) => _ledManager.SetBodyIntensity(index, intensity);
