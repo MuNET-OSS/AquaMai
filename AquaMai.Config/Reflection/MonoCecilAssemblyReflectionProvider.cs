@@ -136,6 +136,26 @@ public class MonoCecilReflectionProvider : IReflectionProvider
                 {
                     defaultValue = Convert.ToBoolean(loadOperand);
                 }
+                else if (loadOperand is int or long && fieldType.IsPrimitive)
+                {
+                    // IL pushes integer constants as int32 (int64 after conv.i8) whatever the field's type. Without the cast,
+                    // a ushort default reads as int, never Equals the typed value, and editors write it out as changed.
+                    // Unchecked: the constant holds the field's bits (uint 3000000000 is pushed as -1294967296).
+                    var bits = Convert.ToInt64(loadOperand);
+                    defaultValue = Type.GetTypeCode(fieldType) switch
+                    {
+                        TypeCode.SByte => (object)unchecked((sbyte)bits),
+                        TypeCode.Byte => unchecked((byte)bits),
+                        TypeCode.Int16 => unchecked((short)bits),
+                        TypeCode.UInt16 => unchecked((ushort)bits),
+                        TypeCode.Int32 => unchecked((int)bits),
+                        TypeCode.UInt32 => unchecked((uint)bits),
+                        TypeCode.Int64 => bits,
+                        TypeCode.UInt64 => unchecked((ulong)bits),
+                        TypeCode.Char => unchecked((char)bits),
+                        _ => loadOperand,
+                    };
+                }
                 else
                 {
                     defaultValue = loadOperand;
