@@ -44,6 +44,22 @@ public class Window
         en: "Height, as above.")]
     private static readonly int height = 0;
 
+    [ConfigEntry(
+        name: "独占全屏",
+        en: """
+            Exclusive fullscreen instead of a fullscreen window (fullscreen mode only).
+            Skips desktop composition, which lowers and steadies display latency. The game minimizes when it loses focus.
+            Needs the game to render on the GPU that drives the display, and Windows "fullscreen optimizations" disabled for Sinmai.exe
+            (compatibility settings); otherwise Windows emulates it as a composed window, which is slower than the default.
+            """,
+        zh: """
+            使用独占全屏而不是全屏窗口（仅全屏模式）
+            跳过桌面合成，显示延迟更低更稳定。游戏失去焦点时会最小化
+            需要游戏在驱动该显示器的 GPU 上渲染，并为 Sinmai.exe 禁用 Windows 的“全屏优化”（兼容性设置），
+            否则 Windows 会用合成窗口模拟独占全屏，延迟反而比默认更高
+            """)]
+    private static readonly bool exclusiveFullscreen = false;
+
     private const int GWL_STYLE = -16;
     private const uint WS_WHATEVER = 0x14CF0000;
     private const uint WS_VISIBLE = 0x10000000;    
@@ -85,7 +101,7 @@ public class Window
         {
             var width = Window.width == 0 ? Display.main.systemWidth : Window.width;
             var height = Window.height == 0 ? Display.main.systemHeight : Window.height;
-            Screen.SetResolution(width, height, FullScreenMode.FullScreenWindow);
+            Screen.SetResolution(width, height, exclusiveFullscreen ? FullScreenMode.ExclusiveFullScreen : FullScreenMode.FullScreenWindow);
         }
     }
 
