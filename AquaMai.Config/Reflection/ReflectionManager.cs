@@ -144,7 +144,7 @@ public class ReflectionManager : IReflectionManager
 
     public IReflectionManager.ISection GetSection(Type type)
     {
-        if (!TryGetSection(type.FullName, out var section))
+        if (!TryGetSection(type, out var section))
         {
             throw new KeyNotFoundException($"Section {type.FullName} not found");
         }
