@@ -98,8 +98,8 @@ public class ScreenPositionAdjust
         }
     }
 
-    private static float[] offsetX = new float[4];
-    private static float[] offsetY = new float[4];
+    public static float[] offsetX = new float[4];
+    public static float[] offsetY = new float[4];
     private static float[] scale = new float[4];
 
     private static void ApplyScale(int index)
