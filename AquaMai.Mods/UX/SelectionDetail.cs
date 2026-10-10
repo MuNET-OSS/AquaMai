@@ -4,6 +4,7 @@ using AquaMai.Core.Attributes;
 using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
 using AquaMai.Core.Resources;
+using AquaMai.Mods.Utils;
 using DB;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -11,6 +12,7 @@ using MAI2.Util;
 using Manager;
 using Manager.MaiStudio;
 using Manager.UserDatas;
+using MelonLoader;
 using Monitor;
 using Process;
 using UnityEngine;
@@ -136,8 +138,22 @@ public class SelectionDetail
 
 
             var width = GuiSizes.FontSize * 15f;
-            var x = GuiSizes.PlayerCenter - width / 2f + GuiSizes.PlayerWidth * player;
-            var y = Screen.height * 0.87f;
+            
+            //跟随屏幕位置调整
+            var sizeFactory = Screen.height / 1920f;
+            float offsetY;
+            float offsetX;
+            if (player == 1) {
+                offsetY = ScreenPositionAdjust.offsetY[2] * sizeFactory;
+                offsetX = ScreenPositionAdjust.offsetX[2] * sizeFactory;
+            }
+            else {
+                offsetY = ScreenPositionAdjust.offsetY[0] * sizeFactory;
+                offsetX = ScreenPositionAdjust.offsetX[0] * sizeFactory;
+            }
+
+            var x = GuiSizes.PlayerCenter - width / 2f + GuiSizes.PlayerWidth * player + offsetX;
+            var y = Screen.height * 0.87f - offsetY;
 
             var labelStyle = GUI.skin.GetStyle("label");
             labelStyle.fontSize = GuiSizes.FontSize;
