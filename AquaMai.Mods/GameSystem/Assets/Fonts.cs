@@ -75,7 +75,7 @@ public class Fonts
         var resolvedPaths = pathsStr
             .Split(';')
             .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(FileSystem.ResolvePath);
+            .Select(LocalAssets.ResolvePath);
 
         var result = new List<TMP_FontAsset>();
         foreach (var p in resolvedPaths)
@@ -104,6 +104,15 @@ public class Fonts
 
     public static void OnBeforePatch()
     {
+        LoadAllFonts();
+
+        // option 包要等 amdaemon 就绪后才挂载，字体放在包里的话这时还找不到，
+        // 但开机阶段的文本又确实需要字体，所以两边都加载，就绪后再解析一次
+        AmDaemonReady.RunWhenReady(LoadAllFonts);
+    }
+
+    private static void LoadAllFonts()
+    {
         fontAssets = LoadFonts(paths);
 
         if (!string.IsNullOrWhiteSpace(maruGothicPaths))
@@ -115,6 +124,20 @@ public class Fonts
         if (fontAssets.Count == 0 && maruGothicFontAssets.Count == 0 && newRodinFontAssets.Count == 0)
         {
             MelonLogger.Warning("[Fonts] No font loaded.");
+            return;
+        }
+
+        // 同一个字体资源是共用的，之前处理过的文本不会再走一遍 Awake，
+        // 把这次新解析到的字体直接补进它们的 fallback 表
+        foreach (var fontAsset in processedFonts)
+        {
+            var table = fontAsset.fallbackFontAssetTable;
+            if (table == null) continue;
+
+            foreach (var fallback in GetFallbackFonts(fontAsset.name))
+            {
+                if (!table.Contains(fallback)) table.Add(fallback);
+            }
         }
     }
 

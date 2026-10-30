@@ -204,6 +204,7 @@ public class Startup
         CollectWantedPatches(wantedPatches, typeof(Shim));
         CollectWantedPatches(wantedPatches, typeof(NetPacketHook));
         CollectWantedPatches(wantedPatches, typeof(ErrorFrame));
+        CollectWantedPatches(wantedPatches, typeof(AmDaemonReady));
         // 使用时才 patch！不要添加这个
         // CollectWantedPatches(wantedPatches, typeof(GameSettingsManager));
         // CollectWantedPatches(wantedPatches, typeof(JvsSwitchHook));

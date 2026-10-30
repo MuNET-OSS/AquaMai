@@ -90,12 +90,13 @@ public class MovieLoader
         var mp4Exists = false;
         var mp4Path = "";
         if (loadMp4Movie) {
-            var resolvedDir = FileSystem.ResolvePath(movieAssetsDir);
-            if (!optionFileMap.TryGetValue($"{music.movieName.id:000000}.mp4", out mp4Path))
+            var fileName = $"{music.movieName.id:000000}.mp4";
+            // 游戏数据目录里的 MovieData 优先，其次才是配置的目录（可能分散在根目录和数据包 / option 包里）
+            if (!optionFileMap.TryGetValue(fileName, out mp4Path))
             {
-                mp4Path = Path.Combine(resolvedDir, $"{music.movieName.id:000000}.mp4");
+                mp4Path = LocalAssets.ResolveFile(movieAssetsDir, fileName);
             }
-            mp4Exists = File.Exists(mp4Path);
+            mp4Exists = mp4Path != null;
         }
 
         // Load jacket

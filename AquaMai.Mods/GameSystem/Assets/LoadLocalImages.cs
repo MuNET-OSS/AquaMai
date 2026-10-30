@@ -140,13 +140,12 @@ public class LoadLocalImages
 
         MelonLogger.Msg($"[LoadLocalImages] Loaded {jacketPaths.Count} Jacket, {platePaths.Count} NamePlate, {framePaths.Count} Frame, {framemaskPaths.Count} FrameMask, {framepatternPaths.Count} FramePattern, {iconPaths.Count} Icon, {charaPaths.Count} Chara, {partnerPaths.Count} PartnerLogo, {tabTitlePaths.Count} Tab Titles, {mapBgPaths.Count} Maps from AssetBundleImages.");
 
-        var resolvedDir = FileSystem.ResolvePath(imageAssetsDir);
-        if (Directory.Exists(resolvedDir))
-            foreach (var laFile in Directory.EnumerateFiles(resolvedDir))
-            {
-                if (!imageExts.Contains(Path.GetExtension(laFile).ToLowerInvariant())) continue;
-                localAssetsContents[Path.GetFileNameWithoutExtension(laFile).ToLowerInvariant()] = laFile;
-            }
+        // LocalAssets 可能同时存在于游戏根目录和数据包 / option 包里，按文件名合并
+        foreach (var laFile in LocalAssets.EnumerateFiles(imageAssetsDir))
+        {
+            if (!imageExts.Contains(Path.GetExtension(laFile).ToLowerInvariant())) continue;
+            localAssetsContents[Path.GetFileNameWithoutExtension(laFile).ToLowerInvariant()] = laFile;
+        }
 
         MelonLogger.Msg($"[LoadLocalImages] Loaded {localAssetsContents.Count} LocalAssets.");
     }

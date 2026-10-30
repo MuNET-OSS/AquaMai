@@ -65,72 +65,92 @@ public class TrackCamouflage
     private static readonly Dictionary<int, CamouflageInfo> _camouflagesDict = [];
 
     [HarmonyPrepare]
-    public static bool Initialize()
+    public static bool Prepare()
     {
-        if (_initialized)
-            return true;
+        // 注入失败时 transpiler 会把它关掉，所以要先标记为可用
+        _initialized = true;
 
-        var resolvedDir = FileSystem.ResolvePath(CamouflageDir.Trim());
-        if (!Directory.Exists(resolvedDir))
+        // 目录要到 amdaemon 就绪后才齐（option 包这时才挂载），所以不能以目录是否存在来决定要不要 patch，
+        // 改为就绪之后再加载
+        AmDaemonReady.RunWhenReady(Load);
+        return true;
+    }
+
+    private static void Load()
+    {
+        var dirs = LocalAssets.ResolveAll(CamouflageDir);
+        if (dirs.Count == 0)
         {
-            MelonLogger.Error($"[TrackCamouflage] Camouflage directory does not exist: {resolvedDir}");
-            return false;
+            MelonLogger.Error($"[TrackCamouflage] Camouflage directory not found: {CamouflageDir}");
+            return;
         }
 
-        var camouflageDefFiles = Directory.GetFiles(resolvedDir, "*.toml", SearchOption.TopDirectoryOnly);
-        var allJacketFiles = Directory.GetFiles(resolvedDir, $"*_jacket.*", SearchOption.TopDirectoryOnly);
+        // 伪装信息和封面分开合并：目录之间按文件覆盖，所以高优先级目录只提供了 toml 时，
+        // 封面仍然沿用低优先级目录的，反过来也一样
+        var infos = new Dictionary<int, CamouflageInfo>();
+        var jacketPaths = new Dictionary<int, string>();
 
-        foreach (var defFilePath in camouflageDefFiles)
+        foreach (var dir in dirs)
         {
-            if (!int.TryParse(Path.GetFileNameWithoutExtension(defFilePath), out int musicID) || musicID <= 0)
-                continue;
-
-            MelonLogger.Msg($"[TrackCamouflage] Loading file {Path.GetFileName(defFilePath)} for music ID {musicID}");
-
-            CamouflageInfo parsedData;
-            try
+            foreach (var defFilePath in Directory.GetFiles(dir, "*.toml", SearchOption.TopDirectoryOnly))
             {
-                var parsedDoc = TomlParser.ParseFile(defFilePath);
-                parsedData = new CamouflageInfo(parsedDoc);
-                parsedData.Load();
-            }
-            catch (Exception e)
-            {
-                MelonLogger.Warning($"[TrackCamouflage] Failed to parse information for music {musicID}, skipping: {e}");
-                continue;
-            }
+                if (!int.TryParse(Path.GetFileNameWithoutExtension(defFilePath), out var musicID) || musicID <= 0)
+                    continue;
 
-            if (parsedData == null)
-                continue;
-
-            // 根据当前正在处理的歌曲的ID，从allJacketFiles中筛选出匹配的jacket
-            var jacketFiles = allJacketFiles.Where(
-                s => int.TryParse(Path.GetFileNameWithoutExtension(s).Split('_')[0], out var res) && 
-                     res == musicID && 
-                     AllowedImageExts.Contains(Path.GetExtension(s).ToLowerInvariant())).ToList();
-            
-            if (jacketFiles.Count == 0)
-                MelonLogger.Msg($"[TrackCamouflage] No jacket file for music ID {musicID}");
-            foreach (var jacketFilePath in jacketFiles)
-            {
                 try
                 {
-                    parsedData.LoadJacketTexture(jacketFilePath);
-                    MelonLogger.Msg($"[TrackCamouflage] Loaded jacket file {Path.GetFileName(jacketFilePath)} for music ID {musicID}");
-                    break;
+                    var info = new CamouflageInfo(TomlParser.ParseFile(defFilePath));
+                    info.Load();
+                    infos[musicID] = info;
+                    MelonLogger.Msg($"[TrackCamouflage] Loaded {Path.GetFileName(defFilePath)} for music ID {musicID}");
                 }
                 catch (Exception e)
                 {
-                    MelonLogger.Warning($"[TrackCamouflage] Failed to read jacket file {jacketFilePath}: {e}");
+                    MelonLogger.Warning($"[TrackCamouflage] Failed to parse {Path.GetFileName(defFilePath)}, skipping: {e}");
                 }
             }
 
-            _camouflagesDict[musicID] = parsedData;
+            foreach (var jacketFilePath in Directory.GetFiles(dir, "*_jacket.*", SearchOption.TopDirectoryOnly))
+            {
+                if (TryGetJacketMusicID(jacketFilePath, out var musicID)) jacketPaths[musicID] = jacketFilePath;
+            }
         }
 
-        MelonLogger.Msg($"[TrackCamouflage] Loaded {_camouflagesDict.Count} file(s)");
-        _initialized = true;
-        return true;
+        foreach (var pair in infos)
+        {
+            var musicID = pair.Key;
+            var info = pair.Value;
+            if (jacketPaths.TryGetValue(musicID, out var jacketFilePath))
+            {
+                try
+                {
+                    if (!info.LoadJacketTexture(jacketFilePath))
+                        MelonLogger.Warning($"[TrackCamouflage] Failed to decode {Path.GetFileName(jacketFilePath)} for music ID {musicID}");
+                }
+                catch (Exception e)
+                {
+                    // 封面读不出来不影响伪装信息本身生效
+                    MelonLogger.Warning($"[TrackCamouflage] Failed to read jacket file {jacketFilePath}: {e}");
+                }
+            }
+            else
+            {
+                MelonLogger.Msg($"[TrackCamouflage] No jacket file for music ID {musicID}");
+            }
+
+            _camouflagesDict[musicID] = info;
+        }
+
+        MelonLogger.Msg($"[TrackCamouflage] Loaded {_camouflagesDict.Count} camouflage(s)");
+    }
+
+    // 封面文件名 <曲目ID>_jacket.jpg/png，只支持 jpg/png，不支持 ab
+    private static bool TryGetJacketMusicID(string jacketFilePath, out int musicID)
+    {
+        musicID = 0;
+        if (!AllowedImageExts.Contains(Path.GetExtension(jacketFilePath).ToLowerInvariant())) return false;
+        if (!int.TryParse(Path.GetFileNameWithoutExtension(jacketFilePath).Split('_')[0], out musicID)) return false;
+        return musicID > 0;
     }
 
     #region MusicChainCard Patch
@@ -456,11 +476,17 @@ public class TrackCamouflage
             _unlockScore = LoadFloat("UnlockScore");
         }
 
-        public void LoadJacketTexture(string path)
+        public bool LoadJacketTexture(string path)
         {
             var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            texture.LoadImage(File.ReadAllBytes(path));
+            if (!texture.LoadImage(File.ReadAllBytes(path)))
+            {
+                UnityEngine.Object.Destroy(texture);
+                return false;
+            }
+
             _jacket = texture;
+            return true;
         }
 
         private string LoadString(string key)

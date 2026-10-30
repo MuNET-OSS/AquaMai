@@ -106,7 +106,7 @@ public class HideSelfMadeCharts
     [HarmonyPatch(typeof(MusicSelectProcess), "OnStart")]
     public static void MusicSelectProcessOnStart(ref MusicSelectProcess __instance)
     {
-        var denyPath = FileSystem.ResolvePath(selfMadeChartsDenyUsersFile);
+        var denyPath = LocalAssets.ResolvePath(selfMadeChartsDenyUsersFile);
         if (File.Exists(denyPath))
         {
             var userIds = File.ReadAllLines(denyPath);
@@ -120,7 +120,7 @@ public class HideSelfMadeCharts
             }
         }
 
-        var whiteListPath = FileSystem.ResolvePath(selfMadeChartsWhiteListUsersFile);
+        var whiteListPath = LocalAssets.ResolvePath(selfMadeChartsWhiteListUsersFile);
         if (File.Exists(whiteListPath))
         {
             var userIds = File.ReadAllLines(whiteListPath);

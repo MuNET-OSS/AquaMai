@@ -24,15 +24,28 @@ public class ResourcesOverride
 
     public static void OnBeforePatch()
     {
-        string resolvedPath = "";
-        resolvedPath = FileSystem.ResolvePath(skinsDir);
+        // 目录要到 amdaemon 就绪后才齐（option 包这时才挂载），所以推迟到就绪后再扫描
+        AmDaemonReady.RunWhenReady(LoadSprites);
+    }
 
-        if (!Directory.Exists(resolvedPath)) {
-            Directory.CreateDirectory(resolvedPath);
+    private static void LoadSprites()
+    {
+        // 目录都不存在时按根目录建一个，方便用户往里放图
+        var rootDir = LocalAssets.ResolvePath(skinsDir);
+        if (!string.IsNullOrEmpty(rootDir) && !Directory.Exists(rootDir))
+        {
+            Directory.CreateDirectory(rootDir);
             return;
         }
 
-        foreach (var file in Directory.GetFiles(resolvedPath, "*.png"))
+        // 按文件名合并根目录和数据包 / option 包里的 LocalAssets，Windows 下文件名不区分大小写
+        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in LocalAssets.EnumerateFiles(skinsDir, "*.png"))
+        {
+            files[Path.GetFileName(file)] = file;
+        }
+
+        foreach (var file in files.Values)
         {
             try {
                 byte[] data = File.ReadAllBytes(file);
@@ -42,7 +55,7 @@ public class ResourcesOverride
                     var sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f));
                     sprite.name = name;
                     tex.name = name;
-                    
+
                     SpritePool[name] = sprite;
                     TexturePool[name] = tex;
                 }

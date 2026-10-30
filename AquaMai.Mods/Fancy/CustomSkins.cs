@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using AquaMai.Config.Attributes;
 using AquaMai.Core.Helpers;
@@ -109,12 +110,24 @@ public class CustomSkins
     [HarmonyPatch(typeof(GameNotePrefabContainer), "Initialize")]
     private static void LoadNoteSkin()
     {
-        var resolvedDir = FileSystem.ResolvePath(skinsDir);
-        if (!Directory.Exists(resolvedDir)) return;
+        // 这个 Initialize 在开机流程里、amdaemon 就绪之前就调用了，那时候 option 包还没挂载，
+        // 所以推迟到就绪之后再扫描
+        AmDaemonReady.RunWhenReady(LoadNoteSkinFromDirs);
+    }
 
-        foreach (var laFile in Directory.EnumerateFiles(resolvedDir))
+    private static void LoadNoteSkinFromDirs()
+    {
+        // 按文件名合并根目录和数据包 / option 包里的 LocalAssets：同一个字段只保留优先级最高的那份
+        // （文件名的扩展名不同、但指向同一个字段的情况也要算重复）
+        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in LocalAssets.EnumerateFiles(skinsDir))
         {
-            if (!ImageExts.Contains(Path.GetExtension(laFile).ToLowerInvariant())) continue;
+            if (!ImageExts.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
+            files[Path.GetFileNameWithoutExtension(file)] = file;
+        }
+
+        foreach (var laFile in files.Values)
+        {
             var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
             texture.LoadImage(File.ReadAllBytes(laFile));
 
