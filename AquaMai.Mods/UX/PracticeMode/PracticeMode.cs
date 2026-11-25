@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -46,6 +46,121 @@ public class PracticeMode
     public static double repeatEnd = -1;
     public static float speed = 1;
     private static CriAtomExPlayer player;
+    // Stock SoundCtrl creates a plain player for music (slot 2), using pool ID 0.
+    // Only this player is ever redirected; effects and both monitors retain their pools.
+    private const uint StretchPoolId = 0x41514536; // "AQE6"
+    private static CriAtomExStandardVoicePool stretchPool;
+    private static bool gameActive, keepPitch, stretchRoute, stretchFailed;
+    private static int gameGeneration;
+    public static bool IsPracticePaused => gameActive && !isInAdvDemo && !Shim.IsKaleidxScopeMode && DebugFeature.Pause;
+    private static bool CanStretch => speed >= 0.5f - 0.00001f && speed <= 2f;
+    public static string KeepPitchLabel => "保持音高\n" + (stretchFailed ? "不可用" : !keepPitch ? "OFF" : CanStretch ? "ON" : "回退");
+
+    public static void ToggleKeepPitch()
+    {
+        if (!IsPracticePaused || (onlyInFreedomMode && (!GameManager.IsFreedomMode || GameManager.GetFreedomModeMSec() <= 0))) return;
+        stretchFailed = false; // allow an explicit retry, never retry every frame
+        keepPitch = !keepPitch;
+        SetSpeed();
+    }
+
+    private static void ApplyStretch()
+    {
+        if (stretchPool == null)
+        {
+            stretchPool = new CriAtomExStandardVoicePool(2, 8, 96000, true, StretchPoolId);
+            if (stretchPool.nativeHandle == IntPtr.Zero) throw new InvalidOperationException("No CRI voice pool");
+            try { stretchPool.AttachDspTimeStretch(); }
+            catch
+            {
+                stretchPool.Dispose();
+                stretchPool = null;
+                throw;
+            }
+        }
+        stretchRoute = true; // also restore if a subsequent setter fails
+        player.SetVoicePoolIdentifier(stretchPool.identifier);
+        player.SetPitch(0f);
+        // Native DSP duration ratio, not playback speed. Tolerate float drift at the 50% step.
+        player.SetDspTimeStretchRatio(Math.Min(2f, 1f / speed));
+    }
+
+    private static void ApplyOriginal()
+    {
+        if (stretchRoute)
+        {
+            player.SetVoicePoolIdentifier(0);
+            player.SetDspTimeStretchRatio(1f);
+            stretchRoute = false;
+        }
+        player.SetPitch((float)(1200 * Math.Log(speed, 2)));
+    }
+
+    private static void FailStretch(Exception ex)
+    {
+        keepPitch = false;
+        stretchFailed = true;
+        MelonLogger.Warning($"[PracticeMode] Keep pitch unavailable; using original playback: {ex.Message}");
+    }
+
+    private static void ApplyAudio(bool updateVoices)
+    {
+        if (player == null || !player.isAvailable)
+        {
+            if (keepPitch) FailStretch(new InvalidOperationException("Music player unavailable"));
+            return;
+        }
+        bool wasStretch = stretchRoute;
+        if (keepPitch && CanStretch)
+        {
+            try { ApplyStretch(); }
+            catch (Exception ex) { FailStretch(ex); }
+        }
+        if (!keepPitch || !CanStretch) ApplyOriginal();
+        if (!updateVoices) return;
+        if (wasStretch != stretchRoute) RestartMusicAtChartTime();
+        else player.UpdateAll();
+    }
+
+    private static void RestartMusicAtChartTime()
+    {
+        // SeekMusic queues a fresh, prepared voice. Do not reset notes, movies or the chart clock.
+        SoundManager.SeekMusic((int)Math.Max(0, CurrentPlayMsec));
+        SoundManager.PauseMusic(DebugFeature.Pause);
+    }
+
+    // SoundCtrl.Play resets player parameters immediately before Start, including after a seek.
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(CriAtomExPlayer), nameof(CriAtomExPlayer.Start))]
+    private static void BeforeMusicStart(CriAtomExPlayer __instance)
+    {
+        if (gameActive && ReferenceEquals(__instance, player) && (keepPitch || stretchRoute || speed != 1f)
+            && !isInAdvDemo && !Shim.IsKaleidxScopeMode) ApplyAudio(false);
+    }
+
+    private static void ReleaseStretch()
+    {
+        keepPitch = false;
+        stretchFailed = false;
+        try
+        {
+            if (stretchPool != null && player != null && player.isAvailable)
+            {
+                if (stretchRoute) player.Stop(true);
+                ApplyOriginal();
+                player.UpdateAll();
+            }
+        }
+        catch (Exception ex) { MelonLogger.Warning($"[PracticeMode] Restore music: {ex.Message}"); }
+        finally
+        {
+            stretchRoute = false;
+            try { stretchPool?.Dispose(); }
+            catch (Exception ex) { MelonLogger.Warning($"[PracticeMode] Dispose voice pool: {ex.Message}"); }
+            stretchPool = null;
+        }
+    }
+
     private static List<MovieMaterialMai2> movie;
     private static GameCtrl[] gameCtrl = new GameCtrl[2];
     public static bool keepNoteSpeed = false;
@@ -59,7 +174,9 @@ public class PracticeMode
             ui = null;
         }
         if (repeatStart >= 0 || repeatEnd >= 0) ClearRepeat();
-        if (speed != 1f) SpeedReset();
+        keepPitch = false;
+        stretchFailed = false;
+        if (speed != 1f || stretchRoute) SpeedReset();
         if (DebugFeature.Pause) TogglePause();
     }
 
@@ -111,23 +228,21 @@ public class PracticeMode
     {
         DontRuinMyAccount.triggerForPracticeMode();
         
-        player.SetPitch((float)(1200 * Math.Log(speed, 2)));
-        // player.SetDspTimeStretchRatio(1 / speed);
-        player.UpdateAll();
+        ApplyAudio(true);
         
         movie?.ForEach(m => m.player?.SetSpeed(speed));
         GameCtrlResetOptionSpeed();
     }
 
-    private static IEnumerator SetSpeedCoroutineInner()
+    private static IEnumerator SetSpeedCoroutineInner(int generation)
     {
         yield return null;
-        SetSpeed();
+        if (gameActive && generation == gameGeneration) SetSpeed();
     }
 
     public static void SetSpeedCoroutine()
     {
-        SharedInstances.GameMainObject.StartCoroutine(SetSpeedCoroutineInner());
+        SharedInstances.GameMainObject.StartCoroutine(SetSpeedCoroutineInner(gameGeneration));
     }
 
     public static void SpeedUp()
@@ -219,6 +334,8 @@ public class PracticeMode
     [HarmonyPostfix]
     public static void GameProcessPostStart()
     {
+        gameActive = true;
+        gameGeneration++;
         repeatStart = -1;
         repeatEnd = -1;
         speed = 1;
@@ -230,9 +347,11 @@ public class PracticeMode
     [HarmonyPostfix]
     public static void GameProcessPostRelease()
     {
+        gameActive = false;
+        speed = 1;
+        ReleaseStretch();
         repeatStart = -1;
         repeatEnd = -1;
-        speed = 1;
         ui = null;
         prevFreedomModeMSec = -1;
     }
@@ -272,6 +391,13 @@ public class PracticeMode
             if (prevFreedomModeMSec > 0 && currentFreedomModeMSec <= 0)
                 ClearPracticeEffects(); // 如果这一帧内、练习模式的时间刚好归零了：则清空练习模式的一切效果。
             prevFreedomModeMSec = currentFreedomModeMSec;
+        }
+
+        // Pool allocation/start errors may be reported asynchronously by the native plugin.
+        if (stretchRoute && player != null && player.isAvailable && player.GetStatus() == CriAtomExPlayer.Status.Error)
+        {
+            FailStretch(new InvalidOperationException("CRI could not start the stretched music voice"));
+            ApplyAudio(true);
         }
 
         if (repeatStart >= 0 && repeatEnd >= 0)
@@ -340,21 +466,12 @@ public class PracticeMode
 
     [HarmonyPatch(typeof(SoundCtrl), "Initialize")]
     [HarmonyPostfix]
-    public static void SoundCtrlPostInitialize(SoundCtrl.InitParam param, Dictionary<int, object> ____players)
+    public static void SoundCtrlPostInitialize(IDictionary ____players)
     {
-        var wrapper = ____players[2];
-        player = (CriAtomExPlayer)wrapper.GetType().GetField("Player").GetValue(wrapper);
-        // var pool = new CriAtomExStandardVoicePool(1, 8, 96000, true, 2);
-        // pool.AttachDspTimeStretch();
-        // player.SetVoicePoolIdentifier(pool.identifier);
-
-        // debug
-        // var wrapper1 = ____players[7];
-        // var player1 = (CriAtomExPlayer)wrapper1.GetType().GetField("Player").GetValue(wrapper1);
-        // var pool = new CriAtomExStandardVoicePool(1, 8, 96000, true, 2);
-        // pool.AttachDspTimeStretch();
-        // player1.SetVoicePoolIdentifier(pool.identifier);
-        // player1.SetDspTimeStretchRatio(2);
+        var wrapper = ____players?[2];
+        var next = wrapper?.GetType().GetField("Player")?.GetValue(wrapper) as CriAtomExPlayer;
+        if (!ReferenceEquals(player, next)) ReleaseStretch();
+        player = next;
     }
 
     [HarmonyPatch(typeof(MovieController), "Awake")]
