@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using AquaMai.Mods.Fix;
 using AquaMai.Core.Helpers;
 using AquaMai.Core.Resources;
@@ -82,9 +82,7 @@ public class PracticeModeUI : MonoBehaviour
         GUI.Button(GetButtonRect(2, 2), Locale.SpeedUp);
         GUI.Button(GetButtonRect(1, 3), Locale.SpeedReset);
 
-        var time = $"{TimeSpan.FromMilliseconds(PracticeMode.CurrentPlayMsec):mm\\:ss\\.fff}\n{TimeSpan.FromMilliseconds(NotesManager.Instance().getPlayFinalMsec()):mm\\:ss\\.fff}";
-        GUI.Label(GetButtonRect(0, 3), PracticeMode.IsPracticePaused
-            ? $"{time}\nE6 {PracticeMode.KeepPitchLabel}" : time);
+        GUI.Label(GetButtonRect(0, 3), $"{TimeSpan.FromMilliseconds(PracticeMode.CurrentPlayMsec):mm\\:ss\\.fff}\n{TimeSpan.FromMilliseconds(NotesManager.Instance().getPlayFinalMsec()):mm\\:ss\\.fff}");
         GUI.Button(GetButtonRect(2, 3), $"保持流速\n{(PracticeMode.keepNoteSpeed ? "ON" : "OFF")}");
     }
 
@@ -125,10 +123,6 @@ public class PracticeModeUI : MonoBehaviour
         else if (InputManager.GetTouchPanelAreaDown(InputManager.TouchPanelArea.B5) || InputManager.GetTouchPanelAreaDown(InputManager.TouchPanelArea.B4))
         {
             PracticeMode.SpeedReset();
-        }
-        else if (PracticeMode.IsPracticePaused && InputManager.GetTouchPanelAreaDown(InputManager.TouchPanelArea.E6))
-        {
-            PracticeMode.ToggleKeepPitch();
         }
         else if (InputManager.GetTouchPanelAreaDown(InputManager.TouchPanelArea.E4))
         {
