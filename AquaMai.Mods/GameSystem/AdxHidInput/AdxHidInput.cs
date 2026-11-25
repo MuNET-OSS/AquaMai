@@ -58,6 +58,7 @@ public class AdxHidInput
     /// 每个玩家槽位同一时刻只会是其中一种，上层输入/灯光逻辑共用。
     /// </summary>
     private static readonly NproDevice[] nproDevice = [null, null];
+    private static readonly int[] lastTopLedRgb = [-1, -1];
 
     /// <summary>该槽位当前使用的传输方式。</summary>
     private enum DeviceKind
@@ -106,6 +107,11 @@ public class AdxHidInput
 
             nproDevice[p] = device;
             deviceKind[p] = DeviceKind.Npro;
+            var topRgb = Volatile.Read(ref lastTopLedRgb[p]);
+            if (topRgb >= 0)
+            {
+                device.SetTopLedColor((byte)(topRgb >> 16), (byte)(topRgb >> 8), (byte)topRgb);
+            }
             connected[p] = true;
             touchProviderPending[p] = true;
             MelonLogger.Msg($"[HidInput] Device {p + 1}P connected (NPro WinUSB)");
@@ -839,6 +845,27 @@ public class AdxHidInput
             {
                 npro.SendLedPacket(packet);
             }
+        }
+    }
+
+    /// <summary>
+    /// NPro 顶灯（Billboard）接管：游戏通过 JVS PWM（IO.Jvs.JvsOutputPwm.Set）驱动顶灯，
+    /// 拦截后经 NPro GAME 管道 0x3A 扩展命令转发。返回 void，不阻断原生 JVS 输出（兼容混用 1P/2P）。
+    /// </summary>
+    [HarmonyPatch]
+    public static class NproTopLedPatch
+    {
+        public static MethodBase TargetMethod() =>
+            typeof(IO.Jvs).GetNestedType("JvsOutputPwm", BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetMethod("Set", new[] { typeof(byte), typeof(Color32), typeof(bool) });
+
+        public static void Prefix(byte index, Color32 color)
+        {
+            if (index >= 2) return;
+            Volatile.Write(ref lastTopLedRgb[index], (color.r << 16) | (color.g << 8) | color.b);
+            if (deviceKind[index] != DeviceKind.Npro) return;
+
+            Volatile.Read(ref nproDevice[index])?.SetTopLedColor(color.r, color.g, color.b);
         }
     }
 }

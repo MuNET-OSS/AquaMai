@@ -17,8 +17,8 @@ namespace AquaMai.Mods.GameSystem.AdxHidInput;
 ///  - 上行：8 字节输入报告（touch[6] + buttons + ext_buttons），
 ///    bulk 是字节流，一次 Read 可能返回多笔报告的拼接，必须按 8 字节重组。
 ///  - 下行：从游戏的串口发送层抓取原始 SEGA 灯板包并原样转发，fade 交给板子插值，
-///    因此与真机行为一致；静止时用 SetLedGsUpdate 保活，避免固件
-///    LED_CONTROL_TIMEOUT_MS(5s) 超时后回落到 idle 灯效。
+///    因此与真机行为一致；并通过 0x3A 扩展命令同步顶灯（Billboard）RGB；
+///    静止时用 SetLedGsUpdate 保活，避免固件 LED_CONTROL_TIMEOUT_MS(5s) 超时后回落到 idle 灯效。
 /// </summary>
 public sealed class NproDevice : IDisposable
 {
@@ -35,6 +35,7 @@ public sealed class NproDevice : IDisposable
     private const byte CmdSetLedGs8BitMulti = 0x32;
     private const byte CmdSetLedGs8BitMultiFade = 0x33;
     private const byte CmdSetLedFet = 0x39;
+    private const byte CmdSetLedTop = 0x3A;
     private const byte CmdSetLedGsUpdate = 0x3C;
 
     // 静止保活间隔：必须明显小于固件 5s 超时。
@@ -52,6 +53,10 @@ public sealed class NproDevice : IDisposable
     private volatile bool _stopping;
 
     private long _lastKeepAliveTicks;
+    private bool _hasLastTopLed;
+    private byte _lastTopR;
+    private byte _lastTopG;
+    private byte _lastTopB;
 
     public bool IsConnected
     {
@@ -96,6 +101,10 @@ public sealed class NproDevice : IDisposable
             try
             {
                 var device = WinUsbIo.Device.Open(path.Path);
+                lock (_writeLock)
+                {
+                    _hasLastTopLed = false;
+                }
                 Interlocked.Exchange(ref _device, device)?.Dispose();
                 _stopping = false;
                 _lastKeepAliveTicks = Clock.ElapsedMilliseconds;
@@ -167,6 +176,10 @@ public sealed class NproDevice : IDisposable
     {
         _stopping = true;
         var device = Interlocked.Exchange(ref _device, null);
+        lock (_writeLock)
+        {
+            _hasLastTopLed = false;
+        }
         device?.Abort();
         device?.Dispose();
         _readThread = null;
@@ -175,6 +188,10 @@ public sealed class NproDevice : IDisposable
     private void MarkDisconnected(WinUsbIo.Device device)
     {
         if (!ReferenceEquals(Interlocked.CompareExchange(ref _device, null, device), device)) return;
+        lock (_writeLock)
+        {
+            _hasLastTopLed = false;
+        }
         device.Dispose();
     }
 
@@ -221,14 +238,39 @@ public sealed class NproDevice : IDisposable
         SendCommand(command, payload);
     }
 
+    /// <summary>设置顶灯（Billboard）RGB 颜色。</summary>
+    public void SetTopLedColor(byte r, byte g, byte b)
+    {
+        lock (_writeLock)
+        {
+            if (!IsConnected) return;
+            if (_hasLastTopLed && _lastTopR == r && _lastTopG == g && _lastTopB == b) return;
+            if (SendCommandLocked(CmdSetLedTop, [r, g, b]))
+            {
+                _hasLastTopLed = true;
+                _lastTopR = r;
+                _lastTopG = g;
+                _lastTopB = b;
+            }
+        }
+    }
+
     #endregion
 
     #region SEGA 组帧
 
     private void SendCommand(byte command, byte[] payload)
     {
+        lock (_writeLock)
+        {
+            SendCommandLocked(command, payload);
+        }
+    }
+
+    private bool SendCommandLocked(byte command, byte[] payload)
+    {
         var device = Volatile.Read(ref _device);
-        if (device == null || !device.IsOpen) return;
+        if (device == null || !device.IsOpen) return false;
 
         // 明文帧：E0 | dst | src | len | cmd | payload | sum
         // len = 命令字 + payload 长度；sum = bytes[1 .. n-2] 之和。
@@ -263,17 +305,27 @@ public sealed class NproDevice : IDisposable
 
         var frame = new byte[n];
         Buffer.BlockCopy(encoded, 0, frame, 0, n);
-        lock (_writeLock)
+        try
         {
-            try
+            if (device.Write(frame, 0, frame.Length, 100) != frame.Length)
             {
-                if (device.Write(frame, 0, frame.Length, 100) != frame.Length)
-                    MarkDisconnected(device);
+                _hasLastTopLed = false;
+                if (ReferenceEquals(Interlocked.CompareExchange(ref _device, null, device), device))
+                {
+                    device.Dispose();
+                }
+                return false;
             }
-            catch
+            return true;
+        }
+        catch
+        {
+            _hasLastTopLed = false;
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _device, null, device), device))
             {
-                MarkDisconnected(device);
+                device.Dispose();
             }
+            return false;
         }
     }
 
