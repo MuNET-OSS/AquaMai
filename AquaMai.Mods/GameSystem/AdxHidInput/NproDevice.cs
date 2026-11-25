@@ -18,7 +18,7 @@ namespace AquaMai.Mods.GameSystem.AdxHidInput;
 ///    bulk 是字节流，一次 Read 可能返回多笔报告的拼接，必须按 8 字节重组。
 ///  - 下行：从游戏的串口发送层抓取原始 SEGA 灯板包并原样转发，fade 交给板子插值，
 ///    因此与真机行为一致；并通过 0x3A 扩展命令同步顶灯（Billboard）RGB；
-///    静止时用 SetLedGsUpdate 保活，避免固件 LED_CONTROL_TIMEOUT_MS(5s) 超时后回落到 idle 灯效。
+///    静止时用 GetBoardStatus(0xF1) 保活，避免固件 LED_CONTROL_TIMEOUT_MS(5s) 超时后回落到 idle 灯效。
 /// </summary>
 public sealed class NproDevice : IDisposable
 {
@@ -37,6 +37,7 @@ public sealed class NproDevice : IDisposable
     private const byte CmdSetLedFet = 0x39;
     private const byte CmdSetLedTop = 0x3A;
     private const byte CmdSetLedGsUpdate = 0x3C;
+    private const byte CmdGetBoardStatus = 0xF1;
 
     // 静止保活间隔：必须明显小于固件 5s 超时。
     private const int KeepAliveIntervalMs = 1000;
@@ -52,7 +53,7 @@ public sealed class NproDevice : IDisposable
     private Thread _readThread;
     private volatile bool _stopping;
 
-    private long _lastKeepAliveTicks;
+    private long _lastTxTicks;
     private bool _hasLastTopLed;
     private byte _lastTopR;
     private byte _lastTopG;
@@ -104,10 +105,10 @@ public sealed class NproDevice : IDisposable
                 lock (_writeLock)
                 {
                     _hasLastTopLed = false;
+                    _lastTxTicks = Clock.ElapsedMilliseconds;
                 }
                 Interlocked.Exchange(ref _device, device)?.Dispose();
                 _stopping = false;
-                _lastKeepAliveTicks = Clock.ElapsedMilliseconds;
                 StartReadThread(device);
                 return true;
             }
@@ -200,18 +201,19 @@ public sealed class NproDevice : IDisposable
     #region 灯光
 
     /// <summary>
-    /// 周期性调用：静止时发保活，保证固件不会因 LED 通道静默而回落到 idle 灯效。
+    /// 周期性调用：长时间无灯光指令下发时发保活，保证固件不会因 LED 通道静默而回落到 idle 灯效。
     /// </summary>
     public void TickKeepAlive()
     {
-        if (!IsConnected) return;
+        lock (_writeLock)
+        {
+            if (!IsConnected) return;
 
-        var now = Clock.ElapsedMilliseconds;
-        if (now - _lastKeepAliveTicks < KeepAliveIntervalMs) return;
-        _lastKeepAliveTicks = now;
+            if (Clock.ElapsedMilliseconds - _lastTxTicks < KeepAliveIntervalMs) return;
 
-        // 幂等、无视觉副作用，正好用作保活。
-        SendCommand(CmdSetLedGsUpdate, Array.Empty<byte>());
+            // 只为触发固件 TaskIO 的 Heartbeat()：GAME 管道关闭了 ACK，且 GetBoardStatus 不触碰灯光未提交缓存。
+            SendCommandLocked(CmdGetBoardStatus, Array.Empty<byte>());
+        }
     }
 
     /// <summary>转发游戏串口层已经组好的灯板请求。</summary>
@@ -316,6 +318,7 @@ public sealed class NproDevice : IDisposable
                 }
                 return false;
             }
+            _lastTxTicks = Clock.ElapsedMilliseconds;
             return true;
         }
         catch
