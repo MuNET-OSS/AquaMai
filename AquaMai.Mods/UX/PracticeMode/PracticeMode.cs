@@ -42,15 +42,21 @@ public class PracticeMode
         zh: "仅在自由模式且时间未耗尽时允许使用练习模式")]
     public static readonly bool onlyInFreedomMode = false;
 
+    [ConfigEntry(
+        name: "变速保持音高",
+        en: "Preserve background music pitch when changing speed (0.5x-2.0x) in Practice Mode.",
+        zh: "在练习模式中变速（0.5x-2.0x）时保持背景音乐音高不变")]
+    public static readonly bool keepPitch = true;
+
     public static double repeatStart = -1;
     public static double repeatEnd = -1;
     public static float speed = 1;
     private static CriAtomExPlayer player;
     // Stock SoundCtrl creates a plain player for music (slot 2), using pool ID 0.
     // Only this player is ever redirected; effects and both monitors retain their pools.
-    private const uint StretchPoolId = 0x41514536; // "AQE6"
+    private const uint StretchPoolId = 0x4151504D; // "AQPM"
     private static CriAtomExStandardVoicePool stretchPool;
-    private static bool gameActive, stretchRoute, legacyPitch, stretchFailed;
+    private static bool gameActive, musicStarted, stretchRoute, legacyPitch, stretchFailed;
     private static int gameGeneration;
 
     // CRI registers the pool for disposal on module finalization. Share one pool across
@@ -99,7 +105,7 @@ public class PracticeMode
         if (!gameActive || isInAdvDemo || Shim.IsKaleidxScopeMode || player == null || !player.isAvailable) return;
         if (speed == 1f && !stretchRoute && !legacyPitch) return;
         bool wasStretch = stretchRoute;
-        if (speed != 1f && speed >= 0.5f && speed <= 2f && !stretchFailed &&
+        if (keepPitch && speed != 1f && speed >= 0.5f && speed <= 2f && !stretchFailed &&
             stretchPool != null && stretchPool.nativeHandle != IntPtr.Zero)
         {
             try
@@ -126,9 +132,20 @@ public class PracticeMode
 
     private static void RestartMusicAtChartTime()
     {
+        // A play/seek is already queued for the music player; BeforeMusicStart will apply parameters when PlayExecute runs.
+        if (!SoundManager.PlayingCueInfoList[(int)SoundManager.PlayerID.Music].IsEmpty) return;
+
+        // Do not restart music that has already stopped or finished playing.
+        var status = player.GetStatus();
+        if (status == CriAtomExPlayer.Status.Stop || status == CriAtomExPlayer.Status.PlayEnd) return;
+
+        // Preserve paused state if music hasn't started yet (Init/Sync/Start/StartWait) or is currently paused.
+        bool shouldPause = DebugFeature.Pause || !musicStarted || (status != CriAtomExPlayer.Status.Error && player.IsPaused());
+        int seekMsec = musicStarted ? (int)Math.Max(0, CurrentPlayMsec) : 0;
+
         // SeekMusic queues a fresh, prepared voice. Do not reset notes, movies or the chart clock.
-        SoundManager.SeekMusic((int)Math.Max(0, CurrentPlayMsec));
-        SoundManager.PauseMusic(DebugFeature.Pause);
+        SoundManager.SeekMusic(seekMsec);
+        SoundManager.PauseMusic(shouldPause);
     }
 
     // SoundCtrl.Play resets player parameters immediately before Start, including after a seek.
@@ -146,15 +163,18 @@ public class PracticeMode
             if (player == null || !player.isAvailable || (!stretchRoute && !legacyPitch)) return;
             if (stretchRoute)
             {
-                try { player.Stop(true); } catch (Exception ex) { FailStretch(ex); }
+                try { player.Stop(true); }
+                catch (Exception ex) { MelonLogger.Warning($"[PracticeMode] Failed to stop stretched music voice: {ex.Message}"); }
                 player.SetVoicePoolIdentifier(0);
             }
             player.SetPitch(0f);
             player.UpdateAll();
             stretchRoute = legacyPitch = false;
         }
-        catch (Exception ex) { FailStretch(ex); }
-
+        catch (Exception ex)
+        {
+            MelonLogger.Warning($"[PracticeMode] Failed to restore music player: {ex.Message}");
+        }
     }
 
     private static List<MovieMaterialMai2> movie;
@@ -330,6 +350,7 @@ public class PracticeMode
     {
         stretchFailed = false;
         gameActive = true;
+        musicStarted = false;
         gameGeneration++;
         repeatStart = -1;
         repeatEnd = -1;
@@ -338,11 +359,22 @@ public class PracticeMode
         prevFreedomModeMSec = GameManager.IsFreedomMode ? GameManager.GetFreedomModeMSec() : -1;
     }
 
+    [HarmonyPatch(typeof(GameProcess), "SetRelease")]
+    [HarmonyPrefix]
+    public static void GameProcessPreSetRelease()
+    {
+        gameActive = false;
+        musicStarted = false;
+        speed = 1;
+        RestoreMusicPlayer();
+    }
+
     [HarmonyPatch(typeof(GameProcess), "OnRelease")]
     [HarmonyPostfix]
     public static void GameProcessPostRelease()
     {
         gameActive = false;
+        musicStarted = false;
         speed = 1;
         RestoreMusicPlayer();
         repeatStart = -1;
@@ -372,8 +404,9 @@ public class PracticeMode
 
     [HarmonyPatch(typeof(GameProcess), "OnUpdate")]
     [HarmonyPostfix]
-    public static void GameProcessPostUpdate(GameProcess __instance, GameMonitor[] ____monitors)
+    public static void GameProcessPostUpdate(GameProcess __instance, GameMonitor[] ____monitors, bool ____startMusic)
     {
+        musicStarted = ____startMusic;
         if (KeyListener.GetKeyDownOrLongPress(key, longPress) && ui is null && 
             (!onlyInFreedomMode || (GameManager.IsFreedomMode && GameManager.GetFreedomModeMSec() > 0))) // onlyInFreedomMode=true情况，则额外检查是否在练习模式内、且时间有剩余，如果不满足则不开启UI。
         {
@@ -391,8 +424,9 @@ public class PracticeMode
         // Pool allocation/start errors may be reported asynchronously by the native plugin.
         if (!stretchFailed && stretchRoute && player != null && player.isAvailable && player.GetStatus() == CriAtomExPlayer.Status.Error)
         {
-            FailStretch(new InvalidOperationException("CRI could not start the stretched music voice"));
+            FailStretch(new InvalidOperationException("Music player entered Error status on stretch route"));
             ApplyAudio(true);
+            return;
         }
 
         if (repeatStart >= 0 && repeatEnd >= 0)
@@ -467,8 +501,14 @@ public class PracticeMode
         var next = wrapper?.GetType().GetField("Player")?.GetValue(wrapper) as CriAtomExPlayer;
         if (!ReferenceEquals(player, next)) { RestoreMusicPlayer(); stretchRoute = legacyPitch = false; }
         player = next;
-        if (player != null && player.isAvailable) InitializeStretchPool();
-        else MelonLogger.Warning("[PracticeMode] Music player missing; practice audio speed control unavailable");
+        if (player != null && player.isAvailable)
+        {
+            if (keepPitch) InitializeStretchPool();
+        }
+        else
+        {
+            MelonLogger.Warning("[PracticeMode] Music player missing; practice audio speed control unavailable");
+        }
     }
 
     [HarmonyPatch(typeof(MovieController), "Awake")]
