@@ -52,15 +52,15 @@ public class PracticeMode
     public static double repeatEnd = -1;
     public static float speed = 1;
     private static CriAtomExPlayer player;
-    // Stock SoundCtrl creates a plain player for music (slot 2), using pool ID 0.
-    // Only this player is ever redirected; effects and both monitors retain their pools.
+    // 原版 SoundCtrl 为背景音乐（槽位 2）创建默认播放器，使用语音池 ID 0。
+    // 只重定向该播放器，音效和两侧屏的语音池保持不变。
     private const uint StretchPoolId = 0x4151504D; // "AQPM"
     private static CriAtomExStandardVoicePool stretchPool;
     private static bool gameActive, musicStarted, stretchRoute, legacyPitch, stretchFailed;
     private static int gameGeneration;
 
-    // CRI registers the pool for disposal on module finalization. Share one pool across
-    // songs: stopping a player does not guarantee that its voices have finished releasing.
+    // CRI 会在模块销毁时自动回收该语音池。跨曲复用同一个池：
+    // 停止播放器并不能保证原生层的语音已同步释放完成。
     private static void InitializeStretchPool()
     {
         if (stretchPool != null && stretchPool.nativeHandle != IntPtr.Zero) return;
@@ -76,7 +76,7 @@ public class PracticeMode
         catch (Exception ex)
         {
             FailStretch(ex);
-            // Never published or selected, so no in-use voice can reference this pool.
+            // 尚未对外发布或选用，不会有正在播放的语音引用该池，可安全释放。
             candidate?.Dispose();
         }
     }
@@ -95,7 +95,7 @@ public class PracticeMode
             player.SetVoicePoolIdentifier(0);
             stretchRoute = false;
         }
-        // The stock pool has no stretch DSP; fallback must not require any DSP setter.
+        // 原版语音池未挂载时间拉伸 DSP，回退路径不应依赖任何 DSP 参数设置。
         player.SetPitch((float)(1200 * Math.Log(speed, 2)));
         legacyPitch = speed != 1f;
     }
@@ -110,7 +110,7 @@ public class PracticeMode
         {
             try
             {
-                stretchRoute = true; // Also restore on a partial setter failure.
+                stretchRoute = true; // 即使后续设置中途失败，也确保回退时会还原路由。
                 player.SetVoicePoolIdentifier(stretchPool.identifier);
                 player.SetPitch(0f);
                 player.SetDspTimeStretchRatio(1f / speed);
@@ -132,23 +132,23 @@ public class PracticeMode
 
     private static void RestartMusicAtChartTime()
     {
-        // A play/seek is already queued for the music player; BeforeMusicStart will apply parameters when PlayExecute runs.
+        // 音乐播放器已有待执行的播放/跳转请求，PlayExecute 触发 BeforeMusicStart 时会自动应用参数。
         if (!SoundManager.PlayingCueInfoList[(int)SoundManager.PlayerID.Music].IsEmpty) return;
 
-        // Do not restart music that has already stopped or finished playing.
+        // 不要重新拉起已经停止或播放完毕的音乐。
         var status = player.GetStatus();
         if (status == CriAtomExPlayer.Status.Stop || status == CriAtomExPlayer.Status.PlayEnd) return;
 
-        // Preserve paused state if music hasn't started yet (Init/Sync/Start/StartWait) or is currently paused.
+        // 如果音乐尚未正式开播（Init/Sync/Start/StartWait）或当前处于暂停状态，则保持暂停。
         bool shouldPause = DebugFeature.Pause || !musicStarted || (status != CriAtomExPlayer.Status.Error && player.IsPaused());
         int seekMsec = musicStarted ? (int)Math.Max(0, CurrentPlayMsec) : 0;
 
-        // SeekMusic queues a fresh, prepared voice. Do not reset notes, movies or the chart clock.
+        // SeekMusic 会排入一个新的待播语音；不要重置音符、BGA 或谱面时钟。
         SoundManager.SeekMusic(seekMsec);
         SoundManager.PauseMusic(shouldPause);
     }
 
-    // SoundCtrl.Play resets player parameters immediately before Start, including after a seek.
+    // SoundCtrl.Play 在 Start 前会重置播放器参数（包括 Seek 之后）。
     [HarmonyPrefix]
     [HarmonyPatch(typeof(CriAtomExPlayer), nameof(CriAtomExPlayer.Start))]
     private static void BeforeMusicStart(CriAtomExPlayer __instance)
@@ -421,7 +421,7 @@ public class PracticeMode
             prevFreedomModeMSec = currentFreedomModeMSec;
         }
 
-        // Pool allocation/start errors may be reported asynchronously by the native plugin.
+        // 语音池分配或启动失败可能由原生插件异步报告。
         if (!stretchFailed && stretchRoute && player != null && player.isAvailable && player.GetStatus() == CriAtomExPlayer.Status.Error)
         {
             FailStretch(new InvalidOperationException("Music player entered Error status on stretch route"));
